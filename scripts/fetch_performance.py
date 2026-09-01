@@ -166,6 +166,11 @@ def compute_nav_stats(root: ET.Element) -> dict:
         "period_end": rows[-1][0],
         "return_pct": round(return_pct, 2),
         "max_drawdown_pct": round(max_drawdown_pct, 2),
+        # Full daily series for rendering an equity curve. Kept as
+        # [date, nav] pairs rather than an object per point to keep
+        # data.json smaller - a year of daily points is only a few
+        # hundred rows, so no downsampling is needed at this scale.
+        "nav_series": [[d, round(nav, 2)] for d, nav in rows],
     }
 
 
