@@ -648,5 +648,19 @@
   "total_trades": 480,
   "win_rate_pct": 50.6,
   "profit_factor": 0.95,
-  "updated_at": "2026-09-01T18:19:40+00:00"
+  "monthly_returns": {
+    "2026": {
+      "Jan": 23.72,
+      "Feb": 2.46,
+      "Mar": 49.55,
+      "Apr": -23.99,
+      "May": -24.92,
+      "Jun": 6.87,
+      "Jul": 13.96,
+      "Aug": -26.4,
+      "YTD": -3.02
+    }
+  },
+  "launch_date": "20260120",
+  "updated_at": "2026-09-01T18:35:47+00:00"
 }
