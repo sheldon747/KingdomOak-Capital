@@ -135,6 +135,7 @@
   .record-panel{
     border:1px solid var(--line); background:var(--panel); border-radius:4px;
     padding:32px; margin-bottom:20px; display:grid; grid-template-columns:1.6fr 1fr; gap:36px;
+    align-items:start;
   }
   .record-panel h3{ font-family:var(--serif); font-weight:500; font-size:1.05rem; margin:0 0 18px; }
   .returns-table{ width:100%; border-collapse:collapse; font-family:var(--mono); font-size:0.82rem; }
@@ -149,9 +150,10 @@
   .record-note{ font-size:0.78rem; color:var(--muted); margin-top:14px; }
 
   .perf-summary{ list-style:none; margin:0; padding:0; }
-  .perf-summary li{ display:flex; justify-content:space-between; gap:12px; padding:11px 0; border-top:1px solid var(--line); font-size:0.92rem; }
+  .perf-summary li{ display:flex; flex-direction:column; gap:6px; padding:12px 0; border-top:1px solid var(--line); font-size:0.85rem; }
   .perf-summary li:last-child{ border-bottom:1px solid var(--line); }
-  .perf-summary .val{ font-family:var(--mono); font-weight:500; }
+  .perf-summary li span:first-child{ color:var(--muted); }
+  .perf-summary .val{ font-family:var(--mono); font-weight:500; font-size:1.15rem; }
   .perf-summary .val.gain{ color:var(--gain); }
   .perf-summary .val.loss{ color:var(--loss); }
   .curve-empty{ text-align:center; padding:40px 0; color:var(--muted); font-size:0.9rem; }
