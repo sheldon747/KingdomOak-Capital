@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KingdomOak Capital Inc.</title>
+<meta name="description" content="KingdomOak Capital Inc. — a federally incorporated proprietary trading business. Systematic futures trading, executed with corporate capital only. Verified performance on TradesViz and Kinfo.">
+<meta name="theme-color" content="#f6f6f3">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --paper:#f6f6f3;
+    --panel:#ffffff;
+    --ink:#15181d;
+    --muted:#6b6d66;
+    --line:#e1e0d8;
+    --gain:#1f6f4a;
+    --loss:#a23b2c;
+    --serif: "Source Serif 4", Georgia, serif;
+    --sans: "Public Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  }
+
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+
+  @media (prefers-reduced-motion: reduce){
+    html{ scroll-behavior:auto; }
+    *{ animation:none !important; transition:none !important; }
+  }
+
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:16px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .wrap{ max-width:1040px; margin:0 auto; padding:0 28px; }
+  .prose{ max-width:62ch; }
+
+  a{ color:inherit; }
+  a:focus-visible, button:focus-visible{ outline:2px solid var(--ink); outline-offset:3px; }
+
+  .skip-link{
+    position:absolute; left:-999px; top:0; background:var(--ink); color:var(--paper);
+    padding:10px 16px; z-index:200;
+  }
+  .skip-link:focus{ left:12px; top:12px; }
+
+  /* Nav */
+  header{
+    position:sticky; top:0; background:rgba(246,246,243,0.92);
+    backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line);
+    z-index:100;
+  }
+  nav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 0;
+  }
+  .brand{
+    font-family:var(--serif); font-size:1.15rem; font-weight:600;
+    text-decoration:none; letter-spacing:-0.01em;
+  }
+  .nav-links{ display:flex; gap:28px; list-style:none; margin:0; padding:0; }
+  .nav-links a{
+    text-decoration:none; font-size:0.94rem; color:var(--ink);
+    padding-bottom:2px; border-bottom:1px solid transparent;
+  }
+  .nav-links a:hover{ border-bottom-color:var(--ink); }
+  .menu-toggle{
+    display:none; background:none; border:1px solid var(--ink); border-radius:4px;
+    width:38px; height:38px; cursor:pointer; color:var(--ink);
+  }
+  .menu-toggle span{ display:block; width:16px; height:1.5px; background:currentColor; margin:3.5px auto; }
+
+  /* Hero */
+  .hero{ padding:88px 0 64px; border-bottom:1px solid var(--line); }
+  .hero .kicker{
+    font-family:var(--mono); font-size:0.82rem; color:var(--muted);
+    display:flex; align-items:center; gap:8px; margin-bottom:22px;
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--gain); flex:none; }
+  .hero h1{
+    font-family:var(--serif); font-weight:500; font-size:clamp(2.3rem, 5vw, 3.4rem);
+    line-height:1.08; letter-spacing:-0.015em; margin:0 0 22px;
+    max-width:20ch;
+  }
+  .hero .lede{ font-size:1.15rem; color:var(--muted); max-width:52ch; margin:0 0 32px; }
+  .hero-actions{ display:flex; gap:24px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .track-record{ margin-top:48px; }
+  .btn{
+    display:inline-block; padding:12px 22px; background:var(--ink); color:var(--paper);
+    text-decoration:none; font-size:0.95rem; font-weight:500; border-radius:2px;
+    border:1px solid var(--ink);
+  }
+  .btn:hover{ background:transparent; color:var(--ink); }
+  .link-quiet{ font-size:0.95rem; text-decoration:underline; text-underline-offset:3px; color:var(--muted); }
+
+  /* Section shell */
+  section{ padding:64px 0; border-bottom:1px solid var(--line); }
+  section:last-of-type{ border-bottom:none; }
+  .section-head{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:36px; flex-wrap:wrap; gap:12px; }
+  .section-head h2{ font-family:var(--serif); font-weight:500; font-size:1.7rem; margin:0; letter-spacing:-0.01em; }
+  .section-head .note{ font-size:0.9rem; color:var(--muted); }
+
+  /* Performance */
+  .stat-row{
+    display:grid; grid-template-columns:1fr 1fr; gap:1px;
+    background:var(--line); border:1px solid var(--line); border-radius:4px;
+    overflow:hidden; margin-bottom:20px;
+  }
+  .stat-box{ background:var(--panel); padding:26px 28px; }
+  .stat-label{ font-family:var(--mono); font-size:0.78rem; color:var(--muted); margin-bottom:8px; }
+  .stat-value{ font-family:var(--mono); font-size:2rem; font-weight:500; font-variant-numeric:tabular-nums; }
+  .stat-value.gain{ color:var(--gain); }
+  .stat-value.loss{ color:var(--loss); }
+  .stat-period{ font-size:0.82rem; color:var(--muted); margin-top:16px; }
+
+  .curve-panel{
+    border:1px solid var(--line); background:var(--panel); border-radius:4px;
+    padding:28px 28px 20px; margin-bottom:20px;
+  }
+  .curve-panel svg{ width:100%; height:auto; display:block; }
+  .curve-labels{ display:flex; justify-content:space-between; margin-top:10px; font-family:var(--mono); font-size:0.78rem; color:var(--muted); }
+  .curve-empty{ text-align:center; padding:40px 0; color:var(--muted); font-size:0.9rem; }
+
+  .verify-panel{
+    border:1px solid var(--line); background:var(--panel); border-radius:4px;
+    padding:40px; display:grid; grid-template-columns:1fr 1fr; gap:28px;
+  }
+  .verify-card{ padding:24px; border:1px solid var(--line); border-radius:4px; }
+  .verify-card h3{ font-family:var(--serif); font-weight:500; font-size:1.1rem; margin:0 0 8px; }
+  .verify-card p{ font-size:0.9rem; color:var(--muted); margin:0 0 18px; }
+  .verify-link{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:0.85rem; text-decoration:none;
+    border:1px solid var(--ink); padding:9px 16px; border-radius:2px; color:var(--ink);
+  }
+  .verify-link:hover{ background:var(--ink); color:var(--paper); }
+  .sync-note{ margin-top:20px; font-size:0.88rem; color:var(--muted); }
+
+  /* Strategy */
+  .strategy-grid{ display:grid; grid-template-columns:1.1fr 0.9fr; gap:56px; }
+  .strategy-grid h3{ font-family:var(--serif); font-weight:500; font-size:1.05rem; margin:0 0 12px; }
+  .strategy-grid p{ color:var(--muted); margin:0 0 16px; }
+
+  dl.instruments{ margin:22px 0 0; }
+  dl.instruments div{ display:flex; gap:16px; padding:10px 0; border-top:1px solid var(--line); }
+  dl.instruments div:last-child{ border-bottom:1px solid var(--line); }
+  dl.instruments dt{ font-family:var(--mono); font-size:0.85rem; width:9ch; flex:none; color:var(--muted); padding-top:2px; }
+  dl.instruments dd{ margin:0; font-size:0.95rem; }
+
+  .principles{ list-style:none; margin:0; padding:0; }
+  .principles li{ padding:10px 0; border-top:1px solid var(--line); font-size:0.95rem; color:var(--muted); }
+  .principles li:last-child{ border-bottom:1px solid var(--line); }
+
+  .compliance{ margin-top:28px; padding-top:20px; border-top:1px dashed var(--line); }
+  .compliance h4{ font-family:var(--mono); font-size:0.82rem; color:var(--muted); font-weight:500; margin:0 0 10px; }
+  .compliance p{ font-size:0.88rem; color:var(--muted); margin:0 0 6px; }
+
+  /* About */
+  .about-text p{ color:var(--muted); margin:0 0 16px; }
+  .about-text .byline{ font-size:0.88rem; color:var(--muted); margin-top:24px; padding-top:20px; border-top:1px solid var(--line); }
+
+  /* Footer */
+  footer{ padding:56px 0 40px; }
+  .footer-grid{ display:grid; grid-template-columns:1.3fr 1fr 1fr; gap:40px; margin-bottom:40px; }
+  .footer-grid h4{ font-family:var(--mono); font-size:0.8rem; color:var(--muted); font-weight:500; margin:0 0 14px; }
+  .footer-grid p{ color:var(--muted); font-size:0.92rem; margin:0 0 14px; }
+  .flat-links{ list-style:none; margin:0; padding:0; }
+  .flat-links li{ margin-bottom:9px; font-size:0.92rem; }
+  .flat-links a{ text-decoration:none; }
+  .flat-links a:hover{ text-decoration:underline; }
+  .footer-legal{ border-top:1px solid var(--line); padding-top:24px; color:var(--muted); font-size:0.82rem; line-height:1.7; }
+  .footer-legal strong{ color:var(--ink); }
+
+  @media (max-width:760px){
+    .menu-toggle{ display:block; }
+    .nav-links{
+      position:absolute; top:100%; left:0; right:0; background:var(--paper);
+      flex-direction:column; padding:8px 28px 18px; border-bottom:1px solid var(--line);
+      display:none; gap:0;
+    }
+    .nav-links.active{ display:flex; }
+    .nav-links li{ padding:10px 0; border-top:1px solid var(--line); }
+    .strategy-grid{ grid-template-columns:1fr; gap:36px; }
+    .verify-panel{ grid-template-columns:1fr; padding:24px; gap:20px; }
+    .footer-grid{ grid-template-columns:1fr; gap:28px; }
+    .hero{ padding:56px 0 44px; }
+  }
+</style>
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to main content</a>
+
+<header>
+  <div class="wrap">
+    <nav aria-label="Main">
+      <a href="#top" class="brand">KingdomOak Capital</a>
+      <button class="menu-toggle" aria-label="Toggle navigation" aria-expanded="false" onclick="toggleMenu()">
+        <span></span><span></span><span></span>
+      </button>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="#performance">Performance</a></li>
+        <li><a href="#strategy">Strategy</a></li>
+        <li><a href="#about">About</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section id="top" class="hero">
+    <div class="wrap">
+      <p class="kicker"><span class="dot" aria-hidden="true"></span> Federally incorporated · CBCA · proprietary capital only</p>
+      <h1>A systematic futures trading record, kept in public.</h1>
+      <p class="lede">KingdomOak Capital Inc. trades index, metals, energy, currency, and crypto futures with corporate capital, under a fixed set of execution rules. Every figure below is pulled directly from the brokerage account — nothing here is typed in after the fact.</p>
+      <div class="hero-actions">
+        <a href="mailto:ContactUs@KingdomOakCapital.com" class="link-quiet">Get in touch</a>
+      </div>
+
+      <div id="performance" class="track-record">
+        <div class="curve-panel" id="curvePanel">
+          <svg id="curveSvg" viewBox="0 0 760 220" preserveAspectRatio="none" role="img" aria-label="Account equity curve"></svg>
+          <div class="curve-labels">
+            <span id="curveStart"></span>
+            <span id="curvePeak"></span>
+            <span id="curveEnd"></span>
+          </div>
+        </div>
+
+        <div class="stat-row" id="statRow">
+          <div class="stat-box">
+            <div class="stat-label">Return</div>
+            <div class="stat-value" id="statReturn">—</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Max drawdown</div>
+            <div class="stat-value" id="statDrawdown">—</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Win rate</div>
+            <div class="stat-value" id="statWinRate">—</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Profit factor</div>
+            <div class="stat-value" id="statProfitFactor">—</div>
+          </div>
+        </div>
+        <p class="stat-period" id="statPeriod"></p>
+
+        <div class="verify-panel">
+          <div class="verify-card">
+            <h3>TradesViz</h3>
+            <p>Full trade-by-trade statistics, synced directly from the brokerage account: win rate, drawdown, profit factor, and monthly returns.</p>
+            <a class="verify-link" href="https://www.tradesviz.com/viewstats/KingdomOak/7c77d476587b33cb" target="_blank" rel="noopener noreferrer">View live statistics ↗</a>
+          </div>
+          <div class="verify-card">
+            <h3>Kinfo</h3>
+            <p>An independent trading journal, kept as a second, separately verified record of the same account.</p>
+            <a class="verify-link" href="https://kinfo.com/p/KingdomOak%20Capital" target="_blank" rel="noopener noreferrer">View live statistics ↗</a>
+          </div>
+        </div>
+        <p class="sync-note">All four figures above are pulled directly from the brokerage account by an automated monthly job — nothing on this page is typed in by hand. TradesViz and Kinfo, above, offer a fuller trade-by-trade breakdown as independent verification.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="strategy">
+    <div class="wrap">
+      <div class="section-head"><h2>Strategy</h2></div>
+      <div class="strategy-grid">
+        <div>
+          <h3>Approach</h3>
+          <p>Every position follows a systematic, rules-based process: technical structure sets the entry and exit, and position size is set before the trade, not after. Risk on any single trade is capped at a fixed dollar limit or 2% of account value, whichever is lower.</p>
+          <p>All capital is corporate and proprietary — no outside investors, no managed accounts, no leverage beyond what the broker provides on the instrument itself.</p>
+
+          <dl class="instruments">
+            <div><dt>ES / MES</dt><dd>S&amp;P 500 futures &amp; micro futures, CME</dd></div>
+            <div><dt>MNQ</dt><dd>Micro E-mini Nasdaq-100 futures, CME</dd></div>
+            <div><dt>MGC</dt><dd>Micro Gold futures, COMEX</dd></div>
+            <div><dt>MCL</dt><dd>Micro WTI Crude Oil futures, NYMEX</dd></div>
+            <div><dt>M6E</dt><dd>Micro EUR/USD futures, CME</dd></div>
+            <div><dt>MBT</dt><dd>Micro Bitcoin futures, CME</dd></div>
+          </dl>
+        </div>
+
+        <div>
+          <h3>Principles</h3>
+          <ul class="principles">
+            <li>Defined entry and exit rules, set before the trade</li>
+            <li>Fixed dollar cap or 2% of account value per trade, whichever is lower</li>
+            <li>Liquid, exchange-traded futures only</li>
+            <li>Position size follows risk, not conviction</li>
+            <li>Monthly reporting, continuously verified</li>
+            <li>Strategy reviewed against its own trading record on an ongoing basis</li>
+          </ul>
+
+          <div class="compliance">
+            <h4>Regulatory standing</h4>
+            <p>Federal corporation registered under the Canada Business Corporations Act (CBCA).</p>
+            <p>Active Ontario extra-provincial registration.</p>
+            <p>No client capital is accepted or managed.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="about">
+    <div class="wrap">
+      <div class="section-head"><h2>About</h2></div>
+      <div class="prose about-text">
+        <p>KingdomOak Capital exists to test a simple claim: that systematic, disciplined trading holds up when it's backed by real risk management and shown in public, month after month.</p>
+        <p>I run it as a federally incorporated business, trading exclusively with corporate capital, and I specialize in exchange-traded futures — index, metals, energy, currency, and crypto contracts that make precise risk control possible at any account size.</p>
+        <p>I also document the process on a YouTube channel, <em>Trading in Progress</em> — the methodology, the market reads, and the discipline that a public track record actually requires.</p>
+        <p class="byline">Electrical engineer by profession, trader by specialization.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <h4>Connect</h4>
+        <p>Trading journal and analysis, published as it happens.</p>
+        <ul class="flat-links">
+          <li><a href="mailto:ContactUs@KingdomOakCapital.com">ContactUs@KingdomOakCapital.com</a></li>
+          <li><a href="https://www.youtube.com/channel/UCxMTlynEUEaWhzoGgADWWdQ/" target="_blank" rel="noopener noreferrer">YouTube — Trading in Progress</a></li>
+          <li><a href="https://instagram.com/Trading.In.Progress" target="_blank" rel="noopener noreferrer">Instagram — @Trading.In.Progress</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Verified on</h4>
+        <ul class="flat-links">
+          <li><a href="https://www.tradesviz.com/viewstats/KingdomOak/7c77d476587b33cb" target="_blank" rel="noopener noreferrer">TradesViz</a></li>
+          <li><a href="https://kinfo.com/p/KingdomOak%20Capital" target="_blank" rel="noopener noreferrer">Kinfo</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Entity</h4>
+        <ul class="flat-links">
+          <li>KingdomOak Capital Inc.</li>
+          <li>Ontario, Canada</li>
+          <li>Federally incorporated (CBCA)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-legal">
+      <p>&copy; 2026 KingdomOak Capital Inc. All rights reserved.</p>
+      <p><strong>Disclaimer:</strong> KingdomOak Capital Inc. is an incorporated active trader operating a proprietary securities trading business using corporate capital only. No client funds are accepted. Past performance does not guarantee future results. Trading and investing involve substantial risk. This website is for informational purposes only and does not constitute investment advice. Content on the YouTube channel is for educational purposes only.</p>
+    </div>
+  </div>
+</footer>
+
+<script>
+  function toggleMenu(){
+    var nav = document.getElementById('navLinks');
+    var btn = document.querySelector('.menu-toggle');
+    var open = nav.classList.toggle('active');
+    btn.setAttribute('aria-expanded', open);
+  }
+  function formatPct(n){
+    var sign = n > 0 ? '+' : '';
+    return sign + n.toFixed(1) + '%';
+  }
+
+  function parseFlexDate(s){
+    // s is "YYYYMMDD"
+    return new Date(s.slice(0,4) + '-' + s.slice(4,6) + '-' + s.slice(6,8) + 'T00:00:00');
+  }
+  function shortDate(s){
+    return parseFlexDate(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  function formatCurrency(n){
+    return '$' + Math.round(n).toLocaleString();
+  }
+
+  function renderCurve(series){
+    var panel = document.getElementById('curvePanel');
+    if(!series || series.length < 2){
+      panel.style.display = 'none';
+      return;
+    }
+
+    var values = series.map(function(p){ return p[1]; });
+    var min = Math.min.apply(null, values);
+    var max = Math.max.apply(null, values);
+    var range = (max - min) || 1;
+
+    var W = 760, H = 220, padTop = 14, padBottom = 14;
+    var innerH = H - padTop - padBottom;
+
+    var points = series.map(function(p, i){
+      var x = (i / (series.length - 1)) * W;
+      var y = padTop + innerH - ((p[1] - min) / range) * innerH;
+      return [x, y];
+    });
+
+    var lineStr = points.map(function(p){ return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
+    var areaStr = 'M0,' + H + ' L' + lineStr.split(' ').join(' L') + ' L' + W + ',' + H + ' Z';
+
+    var isGain = values[values.length - 1] >= values[0];
+    var color = isGain ? 'var(--gain)' : 'var(--loss)';
+
+    var svg = document.getElementById('curveSvg');
+    svg.innerHTML =
+      '<path d="' + areaStr + '" fill="' + color + '" fill-opacity="0.08" stroke="none"></path>' +
+      '<polyline points="' + lineStr + '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></polyline>';
+
+    var peakIdx = values.indexOf(max);
+    document.getElementById('curveStart').textContent = shortDate(series[0][0]) + ' · ' + formatCurrency(series[0][1]);
+    document.getElementById('curvePeak').textContent = 'Peak ' + formatCurrency(max) + ' · ' + shortDate(series[peakIdx][0]);
+    document.getElementById('curveEnd').textContent = shortDate(series[series.length-1][0]) + ' · ' + formatCurrency(series[series.length-1][1]);
+  }
+
+  fetch('data.json', { cache: 'no-store' })
+    .then(function(res){ if(!res.ok) throw new Error('no data.json yet'); return res.json(); })
+    .then(function(d){
+      renderCurve(d.nav_series);
+
+      var ret = document.getElementById('statReturn');
+      var dd = document.getElementById('statDrawdown');
+      var wr = document.getElementById('statWinRate');
+      var pf = document.getElementById('statProfitFactor');
+      var period = document.getElementById('statPeriod');
+
+      ret.textContent = formatPct(d.return_pct);
+      ret.classList.add(d.return_pct >= 0 ? 'gain' : 'loss');
+
+      dd.textContent = formatPct(d.max_drawdown_pct);
+      dd.classList.add('loss');
+
+      if(typeof d.win_rate_pct === 'number'){
+        wr.textContent = d.win_rate_pct.toFixed(1) + '%';
+      } else {
+        wr.closest('.stat-box').style.display = 'none';
+      }
+
+      if(typeof d.profit_factor === 'number'){
+        pf.textContent = d.profit_factor.toFixed(2);
+      } else {
+        pf.closest('.stat-box').style.display = 'none';
+      }
+
+      if(d.period_start && d.period_end){
+        var trades = typeof d.total_trades === 'number' ? d.total_trades + ' closed trades · ' : '';
+        period.textContent = trades + d.period_start + ' to ' + d.period_end + ' · updated ' + (d.updated_at ? d.updated_at.slice(0,10) : '');
+      }
+    })
+    .catch(function(){
+      var row = document.getElementById('statRow');
+      if(row) row.style.display = 'none';
+      var panel = document.getElementById('curvePanel');
+      if(panel) panel.style.display = 'none';
+    });
+
+  document.addEventListener('click', function(e){
+    var nav = document.getElementById('navLinks');
+    var btn = document.querySelector('.menu-toggle');
+    if(nav.classList.contains('active') && !nav.contains(e.target) && !btn.contains(e.target)){
+      nav.classList.remove('active');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+</script>
+</body>
+</html>

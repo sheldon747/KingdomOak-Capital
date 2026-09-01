@@ -1,0 +1,38 @@
+name: Update performance data
+
+on:
+  schedule:
+    # Runs at 06:00 UTC on the 1st of every month.
+    # Cron is UTC-only; adjust the hour if you want it to land at a
+    # specific local time.
+    - cron: "0 6 1 * *"
+  workflow_dispatch: {}  # lets you trigger it manually from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  update-performance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch performance data from IBKR
+        env:
+          FLEX_TOKEN: ${{ secrets.FLEX_TOKEN }}
+          FLEX_QUERY_ID: ${{ secrets.FLEX_QUERY_ID }}
+        run: python scripts/fetch_performance.py
+
+      - name: Commit updated data.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data.json
+          git diff --quiet --cached || git commit -m "Update performance data ($(date -u +%Y-%m-%d))"
+          git push
