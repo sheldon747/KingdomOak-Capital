@@ -263,10 +263,58 @@ def compute_trade_stats(root: ET.Element) -> dict:
     return result
 
 
+MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def compute_monthly_returns(rows: list) -> dict:
+    """
+    Groups the NAV series into calendar months and returns each month's
+    percentage change relative to the prior month's closing NAV (the
+    very first month is measured against the inception baseline, i.e.
+    rows[0], which is why a partial first month reads as "the account's
+    return since inception through that month," not a full calendar
+    month - this is called out as a footnote on the site rather than
+    silently presented as equivalent to later months).
+
+    This does NOT adjust for interim deposits or withdrawals after
+    inception; it assumes, as the rest of this script does, that all
+    capital was in place by the PERFORMANCE_START_DATE baseline.
+
+    Returns: { "2026": { "Jan": 0.65, "Feb": 0.27, ..., "YTD": 3.19 }, ... }
+    YTD per year is the compounded product of that year's monthly
+    returns, not a simple sum.
+    """
+    if len(rows) < 2:
+        return {}
+
+    baseline_nav = rows[0][1]
+    last_nav_by_year_month = {}
+    for date_str, nav in rows[1:]:
+        year, month = date_str[:4], int(date_str[4:6])
+        last_nav_by_year_month[(year, month)] = nav  # later dates overwrite, leaving the month's last value
+
+    results = {}
+    prev_nav = baseline_nav
+    for (year, month), nav in sorted(last_nav_by_year_month.items()):
+        pct = (nav - prev_nav) / prev_nav * 100.0
+        results.setdefault(year, {})[MONTH_ABBR[month - 1]] = round(pct, 2)
+        prev_nav = nav
+
+    for year, months in results.items():
+        compound = 1.0
+        for abbr, pct in months.items():
+            compound *= (1 + pct / 100.0)
+        months["YTD"] = round((compound - 1) * 100.0, 2)
+
+    return results
+
+
 def compute_stats(xml_text: str) -> dict:
     root = ET.fromstring(xml_text)
     stats = compute_nav_stats(root)
     stats.update(compute_trade_stats(root))
+    stats["monthly_returns"] = compute_monthly_returns(stats["nav_series"])
+    stats["launch_date"] = stats["period_start"]
     return stats
 
 
@@ -288,6 +336,22 @@ def main():
 
     import json
     from datetime import datetime, timezone
+
+    # The Flex Query's "Year to Date" period only ever covers the
+    # current calendar year, so on its own each run would forget prior
+    # years the moment January resets it. Merge this run's monthly
+    # figures into whatever monthly_returns history already exists in
+    # the committed data.json, rather than overwriting it outright.
+    existing_monthly_returns = {}
+    if os.path.exists("data.json"):
+        try:
+            with open("data.json") as f:
+                existing_monthly_returns = json.load(f).get("monthly_returns", {})
+        except (json.JSONDecodeError, OSError):
+            pass  # a corrupt or missing prior file just means we start fresh
+
+    merged_monthly_returns = {**existing_monthly_returns, **stats["monthly_returns"]}
+    stats["monthly_returns"] = merged_monthly_returns
 
     output = {
         **stats,
