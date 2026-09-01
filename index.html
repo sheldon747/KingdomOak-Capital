@@ -123,7 +123,7 @@
   .stat-value{ font-family:var(--mono); font-size:2rem; font-weight:500; font-variant-numeric:tabular-nums; }
   .stat-value.gain{ color:var(--gain); }
   .stat-value.loss{ color:var(--loss); }
-  .stat-period{ font-size:0.82rem; color:var(--muted); margin-top:16px; }
+  .stat-period{ font-family:var(--mono); font-size:0.78rem; color:var(--muted); margin-top:14px; letter-spacing:0.01em; }
 
   .curve-panel{
     border:1px solid var(--line); background:var(--panel); border-radius:4px;
@@ -134,8 +134,7 @@
 
   .record-panel{
     border:1px solid var(--line); background:var(--panel); border-radius:4px;
-    padding:32px; margin-bottom:20px; display:grid; grid-template-columns:1.6fr 1fr; gap:36px;
-    align-items:start;
+    padding:32px; margin-bottom:20px;
   }
   .record-panel h3{ font-family:var(--serif); font-weight:500; font-size:1.05rem; margin:0 0 18px; }
   .returns-table{ width:100%; border-collapse:collapse; font-family:var(--mono); font-size:0.82rem; }
@@ -149,11 +148,11 @@
   .returns-table td.empty{ color:var(--line); }
   .record-note{ font-size:0.78rem; color:var(--muted); margin-top:14px; }
 
-  .perf-summary{ list-style:none; margin:0; padding:0; }
-  .perf-summary li{ display:flex; flex-direction:column; gap:6px; padding:12px 0; border-top:1px solid var(--line); font-size:0.85rem; }
-  .perf-summary li:last-child{ border-bottom:1px solid var(--line); }
+  .perf-block{ margin-top:32px; padding-top:28px; border-top:1px dashed var(--line); }
+  .perf-summary{ list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(3, 1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:4px; }
+  .perf-summary li{ background:var(--panel); display:flex; flex-direction:column; gap:8px; padding:18px 20px; font-size:0.82rem; }
   .perf-summary li span:first-child{ color:var(--muted); }
-  .perf-summary .val{ font-family:var(--mono); font-weight:500; font-size:1.15rem; }
+  .perf-summary .val{ font-family:var(--mono); font-weight:500; font-size:1.3rem; }
   .perf-summary .val.gain{ color:var(--gain); }
   .perf-summary .val.loss{ color:var(--loss); }
   .curve-empty{ text-align:center; padding:40px 0; color:var(--muted); font-size:0.9rem; }
@@ -219,7 +218,8 @@
     .nav-links li{ padding:10px 0; border-top:1px solid var(--line); }
     .strategy-grid{ grid-template-columns:1fr; gap:36px; }
     .verify-panel{ grid-template-columns:1fr; padding:24px; gap:20px; }
-    .record-panel{ grid-template-columns:1fr; padding:20px; gap:28px; }
+    .record-panel{ padding:20px; }
+    .perf-summary{ grid-template-columns:1fr; }
     .returns-table{ font-size:0.72rem; }
     .returns-table th, .returns-table td{ padding:6px 4px; }
     .footer-grid{ grid-template-columns:1fr; gap:28px; }
@@ -287,17 +287,16 @@
         <p class="stat-period" id="statPeriod"></p>
 
         <div class="record-panel">
-          <div>
-            <h3>Monthly net returns</h3>
-            <div style="overflow-x:auto;">
-              <table class="returns-table" id="returnsTable">
-                <thead><tr id="returnsHeadRow"></tr></thead>
-                <tbody id="returnsBody"></tbody>
-              </table>
-            </div>
-            <p class="record-note" id="recordNote"></p>
+          <h3>Monthly net returns</h3>
+          <div style="overflow-x:auto;">
+            <table class="returns-table" id="returnsTable">
+              <thead><tr id="returnsHeadRow"></tr></thead>
+              <tbody id="returnsBody"></tbody>
+            </table>
           </div>
-          <div>
+          <p class="record-note" id="recordNote"></p>
+
+          <div class="perf-block">
             <h3>Net performance</h3>
             <ul class="perf-summary">
               <li><span>Launch date</span><span class="val" id="perfLaunch">—</span></li>
@@ -570,7 +569,8 @@
 
       if(d.period_start && d.period_end){
         var trades = typeof d.total_trades === 'number' ? d.total_trades + ' closed trades · ' : '';
-        period.textContent = trades + d.period_start + ' to ' + d.period_end + ' · updated ' + (d.updated_at ? d.updated_at.slice(0,10) : '');
+        var updatedStr = d.updated_at ? shortDate(d.updated_at.slice(0,10).replace(/-/g, '')) : '';
+        period.textContent = trades + shortDate(d.period_start) + ' – ' + shortDate(d.period_end) + (updatedStr ? ' · updated ' + updatedStr : '');
       }
     })
     .catch(function(){
