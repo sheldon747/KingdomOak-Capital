@@ -131,6 +131,29 @@
   }
   .curve-panel svg{ width:100%; height:auto; display:block; }
   .curve-labels{ display:flex; justify-content:space-between; margin-top:10px; font-family:var(--mono); font-size:0.78rem; color:var(--muted); }
+
+  .record-panel{
+    border:1px solid var(--line); background:var(--panel); border-radius:4px;
+    padding:32px; margin-bottom:20px; display:grid; grid-template-columns:1.6fr 1fr; gap:36px;
+  }
+  .record-panel h3{ font-family:var(--serif); font-weight:500; font-size:1.05rem; margin:0 0 18px; }
+  .returns-table{ width:100%; border-collapse:collapse; font-family:var(--mono); font-size:0.82rem; }
+  .returns-table th, .returns-table td{ padding:7px 6px; text-align:right; white-space:nowrap; }
+  .returns-table th{ font-weight:500; color:var(--muted); border-bottom:1px solid var(--ink); }
+  .returns-table td:first-child, .returns-table th:first-child{ text-align:left; font-family:var(--sans); font-weight:500; }
+  .returns-table tr:not(:last-child) td{ border-bottom:1px solid var(--line); }
+  .returns-table td.gain{ color:var(--gain); }
+  .returns-table td.loss{ color:var(--loss); }
+  .returns-table td.ytd{ font-weight:600; border-left:1px solid var(--line); padding-left:14px; }
+  .returns-table td.empty{ color:var(--line); }
+  .record-note{ font-size:0.78rem; color:var(--muted); margin-top:14px; }
+
+  .perf-summary{ list-style:none; margin:0; padding:0; }
+  .perf-summary li{ display:flex; justify-content:space-between; gap:12px; padding:11px 0; border-top:1px solid var(--line); font-size:0.92rem; }
+  .perf-summary li:last-child{ border-bottom:1px solid var(--line); }
+  .perf-summary .val{ font-family:var(--mono); font-weight:500; }
+  .perf-summary .val.gain{ color:var(--gain); }
+  .perf-summary .val.loss{ color:var(--loss); }
   .curve-empty{ text-align:center; padding:40px 0; color:var(--muted); font-size:0.9rem; }
 
   .verify-panel{
@@ -194,6 +217,9 @@
     .nav-links li{ padding:10px 0; border-top:1px solid var(--line); }
     .strategy-grid{ grid-template-columns:1fr; gap:36px; }
     .verify-panel{ grid-template-columns:1fr; padding:24px; gap:20px; }
+    .record-panel{ grid-template-columns:1fr; padding:20px; gap:28px; }
+    .returns-table{ font-size:0.72rem; }
+    .returns-table th, .returns-table td{ padding:6px 4px; }
     .footer-grid{ grid-template-columns:1fr; gap:28px; }
     .hero{ padding:56px 0 44px; }
   }
@@ -257,6 +283,28 @@
           </div>
         </div>
         <p class="stat-period" id="statPeriod"></p>
+
+        <div class="record-panel">
+          <div>
+            <h3>Monthly net returns</h3>
+            <div style="overflow-x:auto;">
+              <table class="returns-table" id="returnsTable">
+                <thead><tr id="returnsHeadRow"></tr></thead>
+                <tbody id="returnsBody"></tbody>
+              </table>
+            </div>
+            <p class="record-note" id="recordNote"></p>
+          </div>
+          <div>
+            <h3>Net performance</h3>
+            <ul class="perf-summary">
+              <li><span>Launch date</span><span class="val" id="perfLaunch">—</span></li>
+              <li><span>YTD performance</span><span class="val" id="perfYtd">—</span></li>
+              <li><span>Cumulative since inception</span><span class="val" id="perfCumulative">—</span></li>
+            </ul>
+            <p class="record-note">Annualized figures aren't shown while the track record is under one year — extrapolating a partial year into a yearly rate would be more misleading than informative at this stage.</p>
+          </div>
+        </div>
 
         <div class="verify-panel">
           <div class="verify-card">
@@ -426,10 +474,73 @@
     document.getElementById('curveEnd').textContent = shortDate(series[series.length-1][0]) + ' · ' + formatCurrency(series[series.length-1][1]);
   }
 
+  var MONTH_ORDER = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function formatMonthlyPct(n){
+    var sign = n > 0 ? '+' : '';
+    return sign + n.toFixed(2) + '%';
+  }
+
+  function renderMonthlyReturns(monthlyReturns, launchDate){
+    var table = document.getElementById('returnsTable');
+    var headRow = document.getElementById('returnsHeadRow');
+    var body = document.getElementById('returnsBody');
+    var note = document.getElementById('recordNote');
+
+    var years = monthlyReturns ? Object.keys(monthlyReturns).sort() : [];
+    if(years.length === 0){
+      table.style.display = 'none';
+      note.textContent = '';
+      return;
+    }
+
+    headRow.innerHTML = '<th>Year</th>' + MONTH_ORDER.map(function(m){ return '<th>' + m + '</th>'; }).join('') + '<th class="ytd">YTD</th>';
+
+    body.innerHTML = years.map(function(year){
+      var months = monthlyReturns[year];
+      var cells = MONTH_ORDER.map(function(m){
+        if(typeof months[m] !== 'number') return '<td class="empty">—</td>';
+        var cls = months[m] >= 0 ? 'gain' : 'loss';
+        return '<td class="' + cls + '">' + formatMonthlyPct(months[m]) + '</td>';
+      }).join('');
+      var ytdCls = months.YTD >= 0 ? 'gain' : 'loss';
+      return '<tr><td>' + year + '</td>' + cells + '<td class="ytd ' + ytdCls + '">' + formatMonthlyPct(months.YTD) + '</td></tr>';
+    }).join('');
+
+    if(launchDate && years.length){
+      var firstYear = years[0];
+      var firstMonthAbbr = null;
+      for(var i = 0; i < MONTH_ORDER.length; i++){
+        if(typeof monthlyReturns[firstYear][MONTH_ORDER[i]] === 'number'){ firstMonthAbbr = MONTH_ORDER[i]; break; }
+      }
+      note.textContent = firstMonthAbbr
+        ? firstMonthAbbr + ' ' + firstYear + ' reflects the return from launch (' + shortDate(launchDate) + ') through month-end, not a full calendar month.'
+        : '';
+    }
+  }
+
   fetch('data.json', { cache: 'no-store' })
     .then(function(res){ if(!res.ok) throw new Error('no data.json yet'); return res.json(); })
     .then(function(d){
       renderCurve(d.nav_series);
+      renderMonthlyReturns(d.monthly_returns, d.launch_date);
+
+      if(d.launch_date){ document.getElementById('perfLaunch').textContent = shortDate(d.launch_date); }
+      if(d.monthly_returns){
+        var years = Object.keys(d.monthly_returns).sort();
+        var latestYear = years[years.length - 1];
+        var ytdVal = latestYear ? d.monthly_returns[latestYear].YTD : null;
+        var ytdEl = document.getElementById('perfYtd');
+        if(typeof ytdVal === 'number'){
+          ytdEl.textContent = formatMonthlyPct(ytdVal);
+          ytdEl.classList.add(ytdVal >= 0 ? 'gain' : 'loss');
+        }
+      }
+      if(typeof d.return_pct === 'number'){
+        var cumEl = document.getElementById('perfCumulative');
+        cumEl.textContent = formatPct(d.return_pct);
+        cumEl.classList.add(d.return_pct >= 0 ? 'gain' : 'loss');
+      }
 
       var ret = document.getElementById('statReturn');
       var dd = document.getElementById('statDrawdown');
@@ -465,6 +576,8 @@
       if(row) row.style.display = 'none';
       var panel = document.getElementById('curvePanel');
       if(panel) panel.style.display = 'none';
+      var recordPanel = document.querySelector('.record-panel');
+      if(recordPanel) recordPanel.style.display = 'none';
     });
 
   document.addEventListener('click', function(e){
