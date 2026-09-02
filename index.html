@@ -98,6 +98,26 @@
   }
   .hero .lede{ font-size:1.15rem; color:var(--muted); max-width:52ch; margin:0 0 32px; }
   .hero-actions{ display:flex; gap:24px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .hero-grid{ display:grid; grid-template-columns:1.5fr 1fr; gap:56px; align-items:center; }
+  .hero-status-card{
+    border:1px solid var(--line); background:var(--panel); border-radius:4px; padding:24px;
+  }
+  .hero-status-top{
+    display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:0.78rem;
+    color:var(--muted); margin-bottom:18px; padding-bottom:14px; border-bottom:1px solid var(--line);
+  }
+  .live-dot{
+    width:7px; height:7px; border-radius:50%; background:var(--gain); flex:none;
+    animation:live-pulse 2s ease-in-out infinite;
+  }
+  @keyframes live-pulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.35; } }
+  .hero-status-row{
+    display:flex; justify-content:space-between; align-items:baseline; gap:12px;
+    padding:10px 0; font-size:0.88rem; color:var(--muted);
+  }
+  .hero-status-row .val{ font-family:var(--mono); font-weight:500; color:var(--ink); }
+  .hero-status-row .val.loss{ color:var(--loss); }
+  .hero-status-row .val.gain{ color:var(--gain); }
   .track-record{ margin-top:48px; }
   .btn{
     display:inline-block; padding:12px 22px; background:var(--ink); color:var(--paper);
@@ -166,9 +186,11 @@
 
   .verify-panel{
     border:1px solid var(--line); background:var(--panel); border-radius:4px;
-    padding:40px; display:grid; grid-template-columns:1fr 1fr; gap:28px;
+    padding:40px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:28px;
   }
   .verify-card{ padding:24px; border:1px solid var(--line); border-radius:4px; }
+  .verify-stat{ font-family:var(--mono); font-size:0.85rem; color:var(--ink); margin:14px 0 0; padding-top:12px; border-top:1px dashed var(--line); }
+  .verify-stat .muted{ color:var(--muted); }
   .verify-card h3{ font-family:var(--serif); font-weight:500; font-size:1.1rem; margin:0 0 8px; }
   .verify-card p{ font-size:0.9rem; color:var(--muted); margin:0 0 18px; }
   .verify-link{
@@ -215,6 +237,29 @@
   .footer-legal strong{ color:var(--ink); }
 
   .dash-block{ margin-top:44px; }
+
+  .goal-progress-track{
+    height:10px; border-radius:5px; background:var(--line); overflow:hidden; position:relative;
+  }
+  .goal-progress-fill{
+    height:100%; background:var(--gain); border-radius:5px 0 0 5px; width:0%;
+    transition:width 0.4s ease;
+  }
+  .goal-progress-labels{
+    display:flex; justify-content:space-between; margin-top:8px;
+    font-family:var(--mono); font-size:0.78rem; color:var(--muted);
+  }
+
+  .goal-focus-row{
+    display:grid; grid-template-columns:repeat(3, 1fr); gap:1px; background:var(--line);
+    border:1px solid var(--line); border-radius:4px; margin-top:20px;
+  }
+  .goal-focus-item{ background:var(--panel); padding:20px; text-align:center; }
+  .goal-focus-item .label{ font-family:var(--mono); font-size:0.75rem; color:var(--muted); margin-bottom:8px; }
+  .goal-focus-item .val{ font-family:var(--mono); font-size:1.6rem; font-weight:500; }
+
+  .streak-tile{ text-align:center; }
+  .streak-tile .streak-flame{ font-size:1.6rem; line-height:1; margin-top:6px; }
   .metric-grid{
     display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:1px;
     background:var(--line); border:1px solid var(--line); border-radius:4px; overflow:hidden;
@@ -285,6 +330,8 @@
     .menu-toggle{ display:block; }
     .charts-row{ grid-template-columns:1fr; }
     .metric-grid{ grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); }
+    .hero-grid{ grid-template-columns:1fr; gap:32px; }
+    .goal-focus-row{ grid-template-columns:1fr; }
     .nav-links{
       position:absolute; top:100%; left:0; right:0; background:var(--paper);
       flex-direction:column; padding:8px 28px 18px; border-bottom:1px solid var(--line);
@@ -326,11 +373,30 @@
 <main id="main">
   <section id="top" class="hero">
     <div class="wrap">
-      <div class="kicker-badge"><span class="dot" aria-hidden="true"></span>Federally incorporated · CBCA · proprietary capital only</div>
-      <h1>A systematic futures trading record, kept in public.</h1>
-      <p class="lede">KingdomOak Capital Inc. trades index, metals, energy, currency, and crypto futures with corporate capital, under a fixed set of execution rules. Every figure below is pulled directly from the brokerage account — nothing here is typed in after the fact.</p>
-      <div class="hero-actions">
-        <a href="mailto:ContactUs@KingdomOakCapital.com" class="link-quiet">Get in touch</a>
+      <div class="hero-grid">
+        <div>
+          <div class="kicker-badge"><span class="dot" aria-hidden="true"></span>Federally incorporated · CBCA · proprietary capital only</div>
+          <h1>A systematic futures trading record, kept in public.</h1>
+          <p class="lede">KingdomOak Capital Inc. trades index, metals, energy, currency, and crypto futures with corporate capital, under a fixed set of execution rules. Every figure below is pulled directly from the brokerage account — nothing here is typed in after the fact.</p>
+          <div class="hero-actions">
+            <a href="mailto:ContactUs@KingdomOakCapital.com" class="link-quiet">Get in touch</a>
+          </div>
+        </div>
+        <div class="hero-status-card" id="heroStatusCard">
+          <div class="hero-status-top"><span class="live-dot" aria-hidden="true"></span>Live account status</div>
+          <div class="hero-status-row">
+            <span>Net asset value</span>
+            <span class="val" id="heroNav">—</span>
+          </div>
+          <div class="hero-status-row">
+            <span>Since inception</span>
+            <span class="val" id="heroSinceInception">—</span>
+          </div>
+          <div class="hero-status-row">
+            <span>Last updated</span>
+            <span class="val" id="heroUpdated">—</span>
+          </div>
+        </div>
       </div>
 
       <div id="performance" class="track-record">
@@ -395,6 +461,13 @@
             <h3>Kinfo</h3>
             <p>An independent trading journal, kept as a second, separately verified record of the same account.</p>
             <a class="verify-link" href="https://kinfo.com/p/KingdomOak%20Capital" target="_blank" rel="noopener noreferrer">View live statistics ↗</a>
+            <p class="verify-stat" id="kinfoRankStat" style="display:none;"></p>
+          </div>
+          <div class="verify-card">
+            <h3>US Investing Championship</h3>
+            <p>Enhanced Growth Division (futures and/or long options), run by Financial Competitions. Entered under KingdomOak Capital / @TradingInProgress.</p>
+            <a class="verify-link" href="https://financial-competitions.com/" target="_blank" rel="noopener noreferrer">View standings ↗</a>
+            <p class="verify-stat" id="usicStat"></p>
           </div>
         </div>
         <p class="sync-note">All four figures above are pulled directly from the brokerage account by an automated monthly job — nothing on this page is typed in by hand. TradesViz and Kinfo, above, offer a fuller trade-by-trade breakdown as independent verification.</p>
@@ -480,6 +553,37 @@
           <thead><tr><th>Week</th><th>Total P&amp;L</th><th>Trades</th><th>Win rate</th></tr></thead>
           <tbody id="weekTableBody"></tbody>
         </table>
+      </div>
+
+      <div class="dash-block">
+        <div class="section-head"><h2 style="font-size:1.15rem;">Current streaks</h2></div>
+        <div class="metric-grid" id="streakGrid"></div>
+      </div>
+
+      <div class="dash-block" id="goalSection">
+        <div class="section-head">
+          <h2 style="font-size:1.15rem;">Road to $1,000,000</h2>
+          <span class="note" id="goalDeadlineNote"></span>
+        </div>
+
+        <div class="goal-progress-track">
+          <div class="goal-progress-fill" id="goalProgressFill"></div>
+        </div>
+        <div class="goal-progress-labels">
+          <span id="goalProgressLabel"></span>
+          <span id="goalRemainingLabel"></span>
+        </div>
+
+        <div class="metric-grid" style="margin-top:20px;" id="goalStatsGrid"></div>
+
+        <div class="goal-focus-row" id="goalFocusRow"></div>
+
+        <div class="curve-panel" style="margin-top:20px;">
+          <svg id="goalSvg" viewBox="0 0 760 260" preserveAspectRatio="none" role="img" aria-label="Actual equity versus required pace to the goal"></svg>
+          <div class="curve-tooltip" id="goalTooltip"></div>
+          <div class="curve-labels" id="goalChartLegend"></div>
+        </div>
+        <p class="record-note">The dashed line is the compounding pace required to reach $1,000,000 by the deadline, recalculated from wherever the account actually stands each month — not a fixed plan. It assumes perfectly smooth daily growth, which real trading never is; it's a reference line, not a prediction.</p>
       </div>
     </div>
   </section>
@@ -651,10 +755,15 @@
     parts.push('<path d="'+areaStr+'" fill="'+color+'" fill-opacity="0.08" stroke="none"></path>');
     parts.push('<polyline points="'+lineStr+'" fill="none" stroke="'+color+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></polyline>');
 
+    var lastLabelX = -Infinity;
+    var MIN_LABEL_SPACING = 58; // px in viewBox units, roughly enough for "Mon 2026"
     monthTicks.forEach(function(i){
       var x = points[i][0];
+      if(x - lastLabelX < MIN_LABEL_SPACING) return;
+      lastLabelX = x;
+      var labelX = Math.min(x, W - 55); // keep the last label from running off the right edge
       parts.push('<line x1="'+x.toFixed(1)+'" y1="'+baseY+'" x2="'+x.toFixed(1)+'" y2="'+(baseY+4)+'" stroke="var(--line)" stroke-width="1"></line>');
-      parts.push('<text x="'+x.toFixed(1)+'" y="'+(H-6)+'" font-size="9.5" fill="var(--muted)" font-family="IBM Plex Mono, ui-monospace, monospace" text-anchor="start">'+monthYearLabel(series[i][0])+'</text>');
+      parts.push('<text x="'+labelX.toFixed(1)+'" y="'+(H-6)+'" font-size="9.5" fill="var(--muted)" font-family="IBM Plex Mono, ui-monospace, monospace" text-anchor="start">'+monthYearLabel(series[i][0])+'</text>');
     });
 
     parts.push('<line id="curveCrosshair" x1="0" y1="'+padTop+'" x2="0" y2="'+baseY+'" stroke="var(--ink)" stroke-width="1" opacity="0" pointer-events="none"></line>');
@@ -960,12 +1069,139 @@
     });
   }
 
+  function toDateObj(s){ return new Date(s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8)+'T00:00:00'); }
+
+  function renderGoalChart(navSeries, trajectory){
+    var svg = document.getElementById('goalSvg');
+    if(!svg || !trajectory || !trajectory.length || !navSeries || !navSeries.length) return;
+
+    var startDate = toDateObj(navSeries[0][0]);
+    var endDate = toDateObj(trajectory[trajectory.length-1][0]);
+    var totalMs = endDate - startDate;
+    if(totalMs <= 0) return;
+
+    var allVals = navSeries.map(function(p){ return p[1]; }).concat(trajectory.map(function(p){ return p[1]; }));
+    var minV = Math.min.apply(null, allVals);
+    var maxV = Math.max.apply(null, allVals);
+    var range = (maxV - minV) || 1;
+
+    var W = 760, H = 260, padTop = 14, padBottom = 14;
+    var innerH = H - padTop - padBottom;
+
+    function xOf(dateStr){ return ((toDateObj(dateStr) - startDate) / totalMs) * W; }
+    function yOf(v){ return padTop + innerH - ((v - minV) / range) * innerH; }
+
+    var actualPts = navSeries.map(function(p){ return [xOf(p[0]), yOf(p[1])]; });
+    var trajPts = trajectory.map(function(p){ return [xOf(p[0]), yOf(p[1])]; });
+
+    var actualLine = actualPts.map(function(p){ return p[0].toFixed(1)+','+p[1].toFixed(1); }).join(' ');
+    var trajLine = trajPts.map(function(p){ return p[0].toFixed(1)+','+p[1].toFixed(1); }).join(' ');
+
+    var isGain = navSeries[navSeries.length-1][1] >= navSeries[0][1];
+    var actualColor = isGain ? 'var(--gain)' : 'var(--loss)';
+    var goalY = yOf(1000000);
+    var todayPt = actualPts[actualPts.length - 1];
+
+    var parts = [];
+    parts.push('<line x1="0" y1="'+goalY.toFixed(1)+'" x2="'+W+'" y2="'+goalY.toFixed(1)+'" stroke="var(--gain)" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"></line>');
+    parts.push('<polyline points="'+actualLine+'" fill="none" stroke="'+actualColor+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></polyline>');
+    parts.push('<polyline points="'+trajLine+'" fill="none" stroke="var(--caution)" stroke-width="1.5" stroke-dasharray="5,4" stroke-linejoin="round" stroke-linecap="round"></polyline>');
+    parts.push('<circle cx="'+todayPt[0].toFixed(1)+'" cy="'+todayPt[1].toFixed(1)+'" r="3.5" fill="'+actualColor+'" stroke="var(--panel)" stroke-width="1.5"></circle>');
+    svg.innerHTML = parts.join('');
+
+    var legend = document.getElementById('goalChartLegend');
+    if(legend){
+      legend.innerHTML = '<span>'+fmtDate(navSeries[0][0])+'</span><span style="color:var(--caution);">- - - required pace to goal</span><span>'+fmtDate(trajectory[trajectory.length-1][0])+' · $1,000,000</span>';
+    }
+  }
+
+  function renderGamification(d){
+    var sg = document.getElementById('streakGrid');
+    if(sg && typeof d.current_day_streak === 'number'){
+      function streakTile(label, count, dir){
+        var isWin = dir === 'win';
+        var valClass = count === 0 ? '' : (isWin ? 'gain' : 'loss');
+        var emoji = count === 0 ? '—' : (isWin ? '🔥' : '🥶');
+        var unit = count === 1 ? (isWin ? ' win' : ' loss') : (isWin ? ' wins' : ' losses');
+        return '<div class="metric-tile streak-tile">'+
+          '<span class="metric-label">'+label+'</span>'+
+          '<div class="metric-value '+valClass+'">'+count+(count>0?unit:'')+'</div>'+
+          '<div class="streak-flame">'+emoji+'</div>'+
+        '</div>';
+      }
+      sg.innerHTML =
+        streakTile('Current day streak', d.current_day_streak, d.current_day_streak_direction) +
+        streakTile('Current week streak', d.current_week_streak, d.current_week_streak_direction) +
+        streakTile('Current month streak', d.current_month_streak, d.current_month_streak_direction);
+    }
+
+    if(typeof d.goal_progress_pct !== 'number'){
+      var goalSection = document.getElementById('goalSection');
+      if(goalSection) goalSection.style.display = 'none';
+      return;
+    }
+
+    document.getElementById('goalDeadlineNote').textContent = fmtDate(d.goal_date) + ' deadline · ' + d.goal_days_remaining + ' days remaining';
+    document.getElementById('goalProgressFill').style.width = Math.min(d.goal_progress_pct, 100) + '%';
+    document.getElementById('goalProgressLabel').textContent = d.goal_progress_pct.toFixed(2) + '% of $1,000,000';
+    document.getElementById('goalRemainingLabel').textContent = formatCurrency(d.goal_dollars_remaining) + ' remaining';
+
+    var gsg = document.getElementById('goalStatsGrid');
+    if(gsg){
+      if(typeof d.required_daily_pct === 'number'){
+        gsg.innerHTML =
+          tile('Required daily gain', 'The compounded daily percentage gain needed, starting from today\u2019s actual NAV, to reach $1,000,000 by the deadline. Recalculated fresh each run \u2014 fall behind and this number rises, get ahead and it falls.', fmtPctD(d.required_daily_pct, 3), 'caution') +
+          tile('Required weekly gain', 'The same required pace, compounded weekly instead of daily.', fmtPctD(d.required_weekly_pct, 2), 'caution') +
+          tile('Required monthly gain', 'The same required pace, compounded monthly instead of daily.', fmtPctD(d.required_monthly_pct, 2), 'caution') +
+          tile('Total return still needed', 'The total percentage growth still required from today\u2019s NAV to reach the goal.', fmtPctD(d.required_total_return_pct, 1), 'caution');
+      } else {
+        gsg.innerHTML = '<p style="color:var(--muted); font-size:0.9rem; padding:20px;">Goal already reached, or the deadline has passed.</p>';
+      }
+    }
+
+    var focusRow = document.getElementById('goalFocusRow');
+    if(focusRow && typeof d.required_dollars_tomorrow === 'number'){
+      focusRow.innerHTML =
+        '<div class="goal-focus-item"><div class="label">Needed tomorrow</div><div class="val">'+fmtCurrencyD(d.required_dollars_tomorrow)+'</div></div>'+
+        '<div class="goal-focus-item"><div class="label">Needed next week</div><div class="val">'+fmtCurrencyD(d.required_dollars_next_week)+'</div></div>'+
+        '<div class="goal-focus-item"><div class="label">Needed next month</div><div class="val">'+fmtCurrencyD(d.required_dollars_next_month)+'</div></div>';
+    }
+
+    renderGoalChart(d.nav_series, d.goal_trajectory);
+  }
+
   fetch('data.json', { cache: 'no-store' })
     .then(function(res){ if(!res.ok) throw new Error('no data.json yet'); return res.json(); })
     .then(function(d){
       renderCurve(d.nav_series);
       renderMonthlyReturns(d.monthly_returns, d.launch_date);
       renderDashboard(d);
+      renderGamification(d);
+
+      if(d.kinfo_rank){
+        var kinfoEl = document.getElementById('kinfoRankStat');
+        kinfoEl.innerHTML = 'Rank <strong>#'+d.kinfo_rank+'</strong> <span class="muted">('+ (d.kinfo_rank_period || '1 Month') +' profit leaderboard, as of '+shortDate(d.kinfo_rank_asof)+')</span>';
+        kinfoEl.style.display = 'block';
+      }
+      var usicEl = document.getElementById('usicStat');
+      if(d.usic_status === 'ranked' && d.usic_rank){
+        usicEl.innerHTML = 'Rank <strong>#'+d.usic_rank+'</strong>'+(d.usic_return_pct ? ' <span class="muted">('+d.usic_return_pct+'% return)</span>' : '');
+      } else {
+        usicEl.innerHTML = '<span class="muted">Not currently listed — the standings only show accounts with a positive return, and this one isn\u2019t yet.</span>';
+      }
+
+      if(d.nav_series && d.nav_series.length){
+        var latestNav = d.nav_series[d.nav_series.length - 1][1];
+        document.getElementById('heroNav').textContent = formatCurrency(latestNav);
+      }
+      if(typeof d.return_pct === 'number'){
+        var sinceEl = document.getElementById('heroSinceInception');
+        sinceEl.textContent = formatPct(d.return_pct);
+        sinceEl.classList.add(d.return_pct >= 0 ? 'gain' : 'loss');
+      }
+      if(d.updated_at){
+        document.getElementById('heroUpdated').textContent = shortDate(d.updated_at.slice(0,10).replace(/-/g, ''));
+      }
 
       if(d.launch_date){ document.getElementById('perfLaunch').textContent = shortDate(d.launch_date); }
       if(d.monthly_returns){
