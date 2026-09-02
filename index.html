@@ -84,9 +84,11 @@
 
   /* Hero */
   .hero{ padding:88px 0 64px; border-bottom:1px solid var(--line); }
-  .hero .kicker{
-    font-family:var(--mono); font-size:0.82rem; color:var(--muted);
-    display:flex; align-items:center; gap:8px; margin-bottom:22px;
+  .hero .kicker-badge{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:var(--mono); font-size:0.78rem; color:var(--ink);
+    background:var(--panel); border:1px solid var(--line); border-radius:999px;
+    padding:7px 16px 7px 12px; margin-bottom:26px;
   }
   .dot{ width:7px; height:7px; border-radius:50%; background:var(--gain); flex:none; }
   .hero h1{
@@ -127,9 +129,14 @@
 
   .curve-panel{
     border:1px solid var(--line); background:var(--panel); border-radius:4px;
-    padding:28px 28px 20px; margin-bottom:20px;
+    padding:28px 28px 20px; margin-bottom:20px; position:relative;
   }
-  .curve-panel svg{ width:100%; height:auto; display:block; }
+  .curve-panel svg{ width:100%; height:auto; display:block; cursor:crosshair; }
+  .curve-tooltip{
+    position:absolute; top:22px; opacity:0; pointer-events:none;
+    background:var(--ink); color:var(--paper); font-family:var(--mono); font-size:0.78rem;
+    padding:6px 10px; border-radius:3px; white-space:nowrap; transition:opacity 0.08s ease;
+  }
   .curve-labels{ display:flex; justify-content:space-between; margin-top:10px; font-family:var(--mono); font-size:0.78rem; color:var(--muted); }
 
   .record-panel{
@@ -319,7 +326,7 @@
 <main id="main">
   <section id="top" class="hero">
     <div class="wrap">
-      <p class="kicker"><span class="dot" aria-hidden="true"></span> Federally incorporated · CBCA · proprietary capital only</p>
+      <div class="kicker-badge"><span class="dot" aria-hidden="true"></span>Federally incorporated · CBCA · proprietary capital only</div>
       <h1>A systematic futures trading record, kept in public.</h1>
       <p class="lede">KingdomOak Capital Inc. trades index, metals, energy, currency, and crypto futures with corporate capital, under a fixed set of execution rules. Every figure below is pulled directly from the brokerage account — nothing here is typed in after the fact.</p>
       <div class="hero-actions">
@@ -329,6 +336,7 @@
       <div id="performance" class="track-record">
         <div class="curve-panel" id="curvePanel">
           <svg id="curveSvg" viewBox="0 0 760 220" preserveAspectRatio="none" role="img" aria-label="Account equity curve"></svg>
+          <div class="curve-tooltip" id="curveTooltip"></div>
           <div class="curve-labels">
             <span id="curveStart"></span>
             <span id="curvePeak"></span>
@@ -604,8 +612,9 @@
     var max = Math.max.apply(null, values);
     var range = (max - min) || 1;
 
-    var W = 760, H = 220, padTop = 14, padBottom = 14;
+    var W = 760, H = 220, padTop = 14, padBottom = 28;
     var innerH = H - padTop - padBottom;
+    var baseY = H - padBottom;
 
     var points = series.map(function(p, i){
       var x = (i / (series.length - 1)) * W;
@@ -614,20 +623,90 @@
     });
 
     var lineStr = points.map(function(p){ return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
-    var areaStr = 'M0,' + H + ' L' + lineStr.split(' ').join(' L') + ' L' + W + ',' + H + ' Z';
+    var areaStr = 'M0,' + baseY + ' L' + lineStr.split(' ').join(' L') + ' L' + W + ',' + baseY + ' Z';
 
     var isGain = values[values.length - 1] >= values[0];
     var color = isGain ? 'var(--gain)' : 'var(--loss)';
 
+    // Reference line at the starting value, so it's visually obvious
+    // whether the account is currently above or below where it began
+    // — a mid-period peak can otherwise make a declining chart read
+    // as a "win" shape at a glance.
+    var startVal = values[0];
+    var startY = padTop + innerH - ((startVal - min) / range) * innerH;
+
+    // One tick per calendar month present in the series.
+    var monthTicks = [];
+    var seenMonths = {};
+    series.forEach(function(p, i){
+      var ym = p[0].slice(0,6);
+      if(!seenMonths[ym]){
+        seenMonths[ym] = true;
+        monthTicks.push(i);
+      }
+    });
+
+    var parts = [];
+    parts.push('<line x1="0" y1="'+startY.toFixed(1)+'" x2="'+W+'" y2="'+startY.toFixed(1)+'" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"></line>');
+    parts.push('<path d="'+areaStr+'" fill="'+color+'" fill-opacity="0.08" stroke="none"></path>');
+    parts.push('<polyline points="'+lineStr+'" fill="none" stroke="'+color+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></polyline>');
+
+    monthTicks.forEach(function(i){
+      var x = points[i][0];
+      parts.push('<line x1="'+x.toFixed(1)+'" y1="'+baseY+'" x2="'+x.toFixed(1)+'" y2="'+(baseY+4)+'" stroke="var(--line)" stroke-width="1"></line>');
+      parts.push('<text x="'+x.toFixed(1)+'" y="'+(H-6)+'" font-size="9.5" fill="var(--muted)" font-family="IBM Plex Mono, ui-monospace, monospace" text-anchor="start">'+monthYearLabel(series[i][0])+'</text>');
+    });
+
+    parts.push('<line id="curveCrosshair" x1="0" y1="'+padTop+'" x2="0" y2="'+baseY+'" stroke="var(--ink)" stroke-width="1" opacity="0" pointer-events="none"></line>');
+    parts.push('<circle id="curveDot" cx="0" cy="0" r="3.5" fill="'+color+'" stroke="var(--panel)" stroke-width="1.5" opacity="0" pointer-events="none"></circle>');
+    parts.push('<rect id="curveHitArea" x="0" y="0" width="'+W+'" height="'+H+'" fill="transparent"></rect>');
+
     var svg = document.getElementById('curveSvg');
-    svg.innerHTML =
-      '<path d="' + areaStr + '" fill="' + color + '" fill-opacity="0.08" stroke="none"></path>' +
-      '<polyline points="' + lineStr + '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></polyline>';
+    svg.innerHTML = parts.join('');
+
+    var crosshair = document.getElementById('curveCrosshair');
+    var dot = document.getElementById('curveDot');
+    var hitArea = document.getElementById('curveHitArea');
+    var tooltip = document.getElementById('curveTooltip');
+
+    function pointerToIndex(clientX){
+      var rect = svg.getBoundingClientRect();
+      var xFrac = (clientX - rect.left) / rect.width;
+      xFrac = Math.max(0, Math.min(1, xFrac));
+      return Math.max(0, Math.min(series.length - 1, Math.round(xFrac * (series.length - 1))));
+    }
+
+    function showAt(idx){
+      var px = points[idx][0], py = points[idx][1];
+      crosshair.setAttribute('x1', px); crosshair.setAttribute('x2', px); crosshair.setAttribute('opacity','1');
+      dot.setAttribute('cx', px); dot.setAttribute('cy', py); dot.setAttribute('opacity','1');
+      if(tooltip){
+        tooltip.style.opacity = '1';
+        tooltip.textContent = shortDate(series[idx][0]) + '  ·  ' + formatCurrency(series[idx][1]);
+        var leftPct = (px / W) * 100;
+        tooltip.style.left = leftPct + '%';
+        tooltip.style.transform = leftPct > 78 ? 'translateX(-100%)' : (leftPct < 8 ? 'translateX(0%)' : 'translateX(-50%)');
+      }
+    }
+    function hide(){
+      crosshair.setAttribute('opacity','0');
+      dot.setAttribute('opacity','0');
+      if(tooltip) tooltip.style.opacity = '0';
+    }
+
+    hitArea.addEventListener('mousemove', function(e){ showAt(pointerToIndex(e.clientX)); });
+    hitArea.addEventListener('mouseleave', hide);
+    hitArea.addEventListener('touchmove', function(e){ if(e.touches[0]) showAt(pointerToIndex(e.touches[0].clientX)); }, {passive:true});
+    hitArea.addEventListener('touchend', hide);
 
     var peakIdx = values.indexOf(max);
     document.getElementById('curveStart').textContent = shortDate(series[0][0]) + ' · ' + formatCurrency(series[0][1]);
     document.getElementById('curvePeak').textContent = 'Peak ' + formatCurrency(max) + ' · ' + shortDate(series[peakIdx][0]);
     document.getElementById('curveEnd').textContent = shortDate(series[series.length-1][0]) + ' · ' + formatCurrency(series[series.length-1][1]);
+  }
+
+  function monthYearLabel(dateStr){
+    return MONTH_ABBR[parseInt(dateStr.slice(4,6),10)-1] + ' ' + dateStr.slice(0,4);
   }
 
   var MONTH_ORDER = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -765,9 +844,22 @@
       '<tr><td>Least profitable</td><td>'+M.least_profitable_instrument[0]+'</td><td class="num" style="color:var(--loss)">'+fmtCurrencyD(M.least_profitable_instrument[1])+'</td></tr>'+
       '</tbody>';
 
-    document.getElementById('pendingGrid').innerHTML =
-      pendingTile('Alpha', 'Excess return versus a benchmark (e.g. ES or SPX), adjusted for market exposure.', 'Needs a benchmark price series — feasible via IBKR price history, not yet pulled.') +
-      pendingTile('Beta', 'Sensitivity of account returns to benchmark market moves. Beta of 1 means it moves with the market; below 1 means less sensitive.', 'Needs the same benchmark series as Alpha.');
+    var pendingHtml = '';
+    if(typeof M.alpha_pct === 'number' && typeof M.beta === 'number'){
+      document.getElementById('riskGrid').innerHTML +=
+        tile('Alpha (annualized)', 'Excess return versus the S&amp;P 500 benchmark, adjusted for market exposure (Beta). Positive means the strategy outperformed what its market exposure alone would predict.', fmtPctD(M.alpha_pct), cls(M.alpha_pct), M.benchmark_overlap_days+' overlapping trading days') +
+        tile('Beta (vs S&amp;P 500)', 'Sensitivity of account returns to S&amp;P 500 moves. Beta of 1 means it moves with the market; below 1 means less sensitive; negative means it tends to move opposite the market.', fmtNum(M.beta));
+    } else {
+      pendingHtml +=
+        pendingTile('Alpha', 'Excess return versus a benchmark (S&amp;P 500), adjusted for market exposure.', 'Benchmark fetch didn\u2019t complete this run \u2014 check the Action log for the specific error.') +
+        pendingTile('Beta', 'Sensitivity of account returns to benchmark market moves. Beta of 1 means it moves with the market; below 1 means less sensitive.', 'Needs the same benchmark series as Alpha.');
+    }
+    var pendingSection = document.getElementById('pendingGrid').closest('.dash-block');
+    if(pendingHtml){
+      document.getElementById('pendingGrid').innerHTML = pendingHtml;
+    } else if(pendingSection){
+      pendingSection.style.display = 'none';
+    }
 
     function buildHwmSeries(navSeries){
       var peak = navSeries[0][1];
