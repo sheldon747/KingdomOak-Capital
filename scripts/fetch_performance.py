@@ -55,7 +55,7 @@ import time
 import math
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
 from urllib.error import URLError
 
 SEND_REQUEST_URL = "https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest"
@@ -73,7 +73,13 @@ MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oc
 # ============================================================
 
 def fetch(url: str) -> str:
-    with urlopen(url, timeout=30) as resp:
+    # Some public data sources (Stooq, in particular) return 403
+    # Forbidden for Python's default urllib User-Agent, treating it as
+    # bot traffic. A browser-like header fixes that without changing
+    # anything else about the request. Harmless for IBKR's Flex Web
+    # Service too, which doesn't care about the header either way.
+    request = Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"})
+    with urlopen(request, timeout=30) as resp:
         return resp.read().decode("utf-8")
 
 
@@ -538,10 +544,31 @@ def compute_consistency_stats(daily: dict) -> dict:
             best = max(best, cur)
         return best
 
+    def current_streak(vals):
+        """
+        Streak counting backward from the most recent value. Returns
+        (count, direction) where direction is "win" or "loss" - or
+        (0, None) if the most recent value is exactly flat.
+        """
+        if not vals:
+            return 0, None
+        last = vals[-1]
+        if last == 0:
+            return 0, None
+        positive = last > 0
+        count = 0
+        for v in reversed(vals):
+            if (v > 0) == positive and v != 0:
+                count += 1
+            else:
+                break
+        return count, ("win" if positive else "loss")
+
+    current_day_streak, current_day_direction = current_streak(pnls)
+    current_week_streak, current_week_direction = current_streak(week_vals)
+    current_month_streak, current_month_direction = current_streak(month_vals)
+
     daily_limit_pct = float(os.environ.get("DAILY_LOSS_LIMIT_PCT", "-2.0"))
-    daily_pct_changes = []
-    for i in range(1, len(dates_sorted)):
-        pass  # daily % change needs NAV, computed separately in main via nav rows; see below
 
     return {
         "green_day_pct": _r(green_day_pct, 1),
@@ -553,6 +580,12 @@ def compute_consistency_stats(daily: dict) -> dict:
         "max_loss_streak_weeks": max_streak(week_vals, False),
         "max_win_streak_months": max_streak(month_vals, True),
         "max_loss_streak_months": max_streak(month_vals, False),
+        "current_day_streak": current_day_streak,
+        "current_day_streak_direction": current_day_direction,
+        "current_week_streak": current_week_streak,
+        "current_week_streak_direction": current_week_direction,
+        "current_month_streak": current_month_streak,
+        "current_month_streak_direction": current_month_direction,
         "_daily_limit_pct": daily_limit_pct,
     }
 
@@ -669,6 +702,65 @@ def compute_monthly_returns(rows: list) -> dict:
 BENCHMARK_URL = "https://stooq.com/q/d/l/?s=%5Espx&d1={start}&d2={end}&i=d"
 
 
+# ============================================================
+# Goal tracker: path to a target NAV by a target date
+# ============================================================
+#
+# GOAL_AMOUNT and GOAL_DATE are configurable via environment variables
+# so the target can change without editing code. Defaults reflect the
+# stated goal: $1,000,000 by August 31, 2027.
+
+def compute_goal_tracker(rows: list) -> dict:
+    goal_amount = float(os.environ.get("GOAL_AMOUNT", "1000000"))
+    goal_date_str = os.environ.get("GOAL_DATE", "20270831")
+
+    latest_date_str, current_nav = rows[-1]
+    latest_date = datetime.strptime(latest_date_str, "%Y%m%d")
+    goal_date = datetime.strptime(goal_date_str, "%Y%m%d")
+    days_remaining = (goal_date - latest_date).days
+
+    result = {
+        "goal_amount": goal_amount,
+        "goal_date": goal_date_str,
+        "goal_progress_pct": _r(current_nav / goal_amount * 100, 2),
+        "goal_dollars_remaining": _r(goal_amount - current_nav),
+        "goal_days_remaining": days_remaining,
+    }
+
+    if days_remaining <= 0 or current_nav <= 0:
+        # Deadline already passed, or NAV is non-positive (compounding
+        # math toward a positive goal is undefined from zero/negative) -
+        # report progress-to-date only, no forward path.
+        return result
+
+    required_total_return_pct = (goal_amount / current_nav - 1) * 100
+    required_daily_rate = (goal_amount / current_nav) ** (1 / days_remaining) - 1
+
+    result.update({
+        "required_total_return_pct": _r(required_total_return_pct),
+        "required_daily_pct": _r(required_daily_rate * 100, 4),
+        "required_weekly_pct": _r(((1 + required_daily_rate) ** 7 - 1) * 100, 3),
+        "required_monthly_pct": _r(((1 + required_daily_rate) ** 30 - 1) * 100, 2),
+        "required_dollars_tomorrow": _r(current_nav * required_daily_rate),
+        "required_dollars_next_week": _r(current_nav * ((1 + required_daily_rate) ** 7 - 1)),
+        "required_dollars_next_month": _r(current_nav * ((1 + required_daily_rate) ** 30 - 1)),
+    })
+
+    # Full compounding trajectory from today's NAV to the goal, one
+    # point per calendar day, for charting alongside the actual equity
+    # curve. This is the pace required if growth were perfectly smooth
+    # every single day - real trading never looks like this, it's a
+    # reference line, not a prediction.
+    trajectory = []
+    for n in range(days_remaining + 1):
+        d = latest_date + timedelta(days=n)
+        required_nav = current_nav * ((1 + required_daily_rate) ** n)
+        trajectory.append([d.strftime("%Y%m%d"), _r(required_nav)])
+    result["goal_trajectory"] = trajectory
+
+    return result
+
+
 def fetch_benchmark_closes(start_date: str, end_date: str) -> dict:
     """
     Returns {date_str ("YYYYMMDD"): close_price} for the S&P 500 (^SPX)
@@ -747,6 +839,11 @@ def compute_alpha_beta(rows: list) -> dict:
 # Top-level orchestration
 # ============================================================
 
+# ============================================================
+
+
+
+
 def compute_stats(xml_text: str) -> dict:
     root = ET.fromstring(xml_text)
 
@@ -783,6 +880,28 @@ def compute_stats(xml_text: str) -> dict:
 
     stats["daily_pnl"] = {d: v for d, v in daily.items()}
     stats["launch_date"] = stats["period_start"]
+    stats.update(compute_goal_tracker(rows))
+
+    # Kinfo leaderboard rank and US Investing Championship status are
+    # not available through any API - Kinfo's leaderboard is a
+    # JavaScript app with no public data endpoint, and the
+    # Championship simply doesn't list accounts that aren't currently
+    # profitable. Both are set manually as environment variables
+    # (GitHub repo Variables, not Secrets, since none of this is
+    # sensitive) and passed straight through here. Update them
+    # whenever you check the real values - this script cannot fetch
+    # them itself.
+    kinfo_rank = os.environ.get("KINFO_RANK")
+    if kinfo_rank:
+        stats["kinfo_rank"] = kinfo_rank
+        stats["kinfo_rank_period"] = os.environ.get("KINFO_RANK_PERIOD", "1 Month")
+        stats["kinfo_rank_asof"] = os.environ.get("KINFO_RANK_ASOF", stats["period_end"])
+
+    usic_status = os.environ.get("USIC_STATUS", "not_ranked")
+    stats["usic_status"] = usic_status
+    if usic_status == "ranked":
+        stats["usic_rank"] = os.environ.get("USIC_RANK")
+        stats["usic_return_pct"] = os.environ.get("USIC_RETURN_PCT")
 
     try:
         stats.update(compute_alpha_beta(rows))
