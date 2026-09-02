@@ -207,8 +207,77 @@
   .footer-legal{ border-top:1px solid var(--line); padding-top:24px; color:var(--muted); font-size:0.82rem; line-height:1.7; }
   .footer-legal strong{ color:var(--ink); }
 
+  .dash-block{ margin-top:44px; }
+  .metric-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:1px;
+    background:var(--line); border:1px solid var(--line); border-radius:4px; overflow:hidden;
+  }
+  .metric-tile{ background:var(--panel); padding:18px 18px 16px; min-height:96px; }
+  .metric-tile.pending{ background:#fafaf8; }
+  .metric-label{
+    font-size:0.76rem; color:var(--muted); display:inline-flex; align-items:center; gap:5px;
+    border-bottom:1px dotted var(--muted); cursor:help; position:relative;
+  }
+  .metric-label .info-dot{
+    width:13px; height:13px; border-radius:50%; border:1px solid var(--muted); font-size:0.62rem;
+    display:inline-flex; align-items:center; justify-content:center; color:var(--muted); flex:none;
+  }
+  .metric-label .tooltip{
+    visibility:hidden; opacity:0; position:absolute; bottom:calc(100% + 8px); left:0; width:230px;
+    background:var(--ink); color:var(--paper); font-family:var(--sans); font-size:0.78rem; line-height:1.5;
+    padding:10px 12px; border-radius:4px; z-index:20; transition:opacity 0.12s ease; pointer-events:none;
+    font-weight:400; white-space:normal;
+  }
+  .metric-label:hover .tooltip{ visibility:visible; opacity:1; }
+  .metric-value{ font-family:var(--mono); font-weight:500; font-size:1.5rem; margin-top:8px; }
+  .metric-value.gain{ color:var(--gain); }
+  .metric-value.loss{ color:var(--loss); }
+  .metric-value.caution{ color:var(--caution); }
+  .metric-sub{ font-size:0.76rem; color:var(--muted); margin-top:5px; }
+  .pending-note{ font-size:0.72rem; color:var(--caution); margin-top:8px; line-height:1.4; }
+
+  .charts-row{ display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:4px; overflow:hidden; margin-bottom:1px; }
+  .chart-box{ background:var(--panel); padding:20px; }
+  .chart-box h4{ font-family:var(--serif); font-weight:500; font-size:0.95rem; margin:0 0 12px; }
+  .chart-box svg{ width:100%; height:auto; display:block; }
+  .chart-labels{ display:flex; justify-content:space-between; margin-top:8px; font-family:var(--mono); font-size:0.72rem; color:var(--muted); }
+
+  table.instr-table{ width:100%; border-collapse:collapse; font-size:0.88rem; background:var(--panel); border:1px solid var(--line); border-radius:4px; overflow:hidden; }
+  table.instr-table th, table.instr-table td{ padding:12px 16px; text-align:left; border-bottom:1px solid var(--line); }
+  table.instr-table th{ font-weight:500; color:var(--muted); font-size:0.78rem; text-transform:none; background:#fafaf8; }
+  table.instr-table td.num{ font-family:var(--mono); text-align:right; }
+  table.instr-table tr:last-child td{ border-bottom:none; }
+  .instr-note{ font-size:0.72rem; color:var(--caution); }
+
+  /* Calendar heatmap */
+  .cal-legend{ display:flex; align-items:center; gap:8px; font-size:0.78rem; color:var(--muted); margin-bottom:18px; flex-wrap:wrap; }
+  .cal-legend .swatch{ width:13px; height:13px; border-radius:2px; display:inline-block; }
+  .cal-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:20px; }
+  .cal-month{ background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:14px 14px 10px; }
+  .cal-month h5{ font-family:var(--serif); font-weight:500; font-size:0.9rem; margin:0 0 10px; display:flex; justify-content:space-between; }
+  .cal-month h5 .m-total{ font-family:var(--mono); font-size:0.78rem; font-weight:500; }
+  .cal-dow{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-bottom:4px; }
+  .cal-dow span{ font-size:0.62rem; color:var(--muted); text-align:center; font-family:var(--mono); }
+  .cal-cells{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .cal-cell{ aspect-ratio:1; border-radius:2px; background:#f0efe9; position:relative; cursor:default; }
+  .cal-cell.empty{ background:transparent; }
+  .cal-cell:hover .cell-tip{ visibility:visible; opacity:1; }
+  .cell-tip{
+    visibility:hidden; opacity:0; position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%);
+    background:var(--ink); color:var(--paper); font-family:var(--mono); font-size:0.68rem; line-height:1.5;
+    padding:6px 8px; border-radius:3px; white-space:nowrap; z-index:30; transition:opacity 0.1s ease; pointer-events:none;
+  }
+
+  .week-table{ margin-top:32px; width:100%; border-collapse:collapse; font-size:0.85rem; background:var(--panel); border:1px solid var(--line); border-radius:4px; overflow:hidden; }
+  .week-table th, .week-table td{ padding:9px 14px; text-align:right; border-bottom:1px solid var(--line); font-family:var(--mono); }
+  .week-table th{ font-weight:500; color:var(--muted); font-size:0.75rem; background:#fafaf8; }
+  .week-table td:first-child, .week-table th:first-child{ text-align:left; font-family:var(--sans); }
+  .week-table tr:last-child td{ border-bottom:none; }
+
   @media (max-width:760px){
     .menu-toggle{ display:block; }
+    .charts-row{ grid-template-columns:1fr; }
+    .metric-grid{ grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); }
     .nav-links{
       position:absolute; top:100%; left:0; right:0; background:var(--paper);
       flex-direction:column; padding:8px 28px 18px; border-bottom:1px solid var(--line);
@@ -239,6 +308,7 @@
       </button>
       <ul class="nav-links" id="navLinks">
         <li><a href="#performance">Performance</a></li>
+        <li><a href="#dashboard">Dashboard</a></li>
         <li><a href="#strategy">Strategy</a></li>
         <li><a href="#about">About</a></li>
       </ul>
@@ -320,6 +390,88 @@
           </div>
         </div>
         <p class="sync-note">All four figures above are pulled directly from the brokerage account by an automated monthly job — nothing on this page is typed in by hand. TradesViz and Kinfo, above, offer a fuller trade-by-trade breakdown as independent verification.</p>
+        <p class="sync-note"><a href="#dashboard" class="link-quiet">See the full performance dashboard ↓</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="dashboard">
+    <div class="wrap">
+      <div class="section-head"><h2>Full performance dashboard</h2></div>
+
+      <div class="dash-block">
+        <div class="section-head">
+          <h2 style="font-size:1.15rem;">Risk-adjusted performance</h2>
+          <span class="note">Computed from daily returns since launch</span>
+        </div>
+        <div class="metric-grid" id="riskGrid"></div>
+      </div>
+
+      <div class="dash-block">
+        <div class="section-head"><h2 style="font-size:1.15rem;">Drawdown &amp; recovery</h2></div>
+        <div class="metric-grid" id="ddGrid" style="margin-bottom:1px;"></div>
+        <div class="charts-row">
+          <div class="chart-box">
+            <h4>High-water mark</h4>
+            <svg id="hwmSvg" viewBox="0 0 500 180" preserveAspectRatio="none"></svg>
+            <div class="chart-labels"><span id="hwmStart"></span><span id="hwmEnd"></span></div>
+          </div>
+          <div class="chart-box">
+            <h4>Underwater curve</h4>
+            <svg id="underwaterSvg" viewBox="0 0 500 180" preserveAspectRatio="none"></svg>
+            <div class="chart-labels"><span id="uwStart"></span><span id="uwEnd"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-block">
+        <div class="section-head"><h2 style="font-size:1.15rem;">Trade statistics</h2></div>
+        <div class="metric-grid" id="tradeGrid"></div>
+      </div>
+
+      <div class="dash-block">
+        <div class="section-head"><h2 style="font-size:1.15rem;">Consistency</h2></div>
+        <div class="metric-grid" id="consistencyGrid"></div>
+      </div>
+
+      <div class="dash-block">
+        <div class="section-head"><h2 style="font-size:1.15rem;">P&amp;L breakdown</h2></div>
+        <div class="metric-grid" id="pnlGrid"></div>
+      </div>
+
+      <div class="dash-block">
+        <div class="section-head"><h2 style="font-size:1.15rem;">Instrument breakdown</h2></div>
+        <table class="instr-table" id="instrTable"></table>
+      </div>
+
+      <div class="dash-block">
+        <div class="section-head"><h2 style="font-size:1.15rem;">Planned, pending more data</h2></div>
+        <div class="metric-grid" id="pendingGrid"></div>
+      </div>
+
+      <div class="dash-block">
+        <div class="section-head">
+          <h2 style="font-size:1.15rem;">Daily performance calendar</h2>
+          <span class="note">2026 — hover a day for exact figures</span>
+        </div>
+        <div class="cal-legend">
+          <span>Loss</span>
+          <span class="swatch" style="background:#e8b8ac"></span>
+          <span class="swatch" style="background:#c97e6a"></span>
+          <span class="swatch" style="background:var(--loss)"></span>
+          <span class="swatch" style="background:#f0efe9"></span>
+          <span class="swatch" style="background:#9dc4ac"></span>
+          <span class="swatch" style="background:#5a9877"></span>
+          <span class="swatch" style="background:var(--gain)"></span>
+          <span>Gain</span>
+          <span style="margin-left:14px;">No trading yet: <span class="swatch" style="background:#f0efe9;"></span></span>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+
+        <table class="week-table" id="weekTable">
+          <thead><tr><th>Week</th><th>Total P&amp;L</th><th>Trades</th><th>Win rate</th></tr></thead>
+          <tbody id="weekTableBody"></tbody>
+        </table>
       </div>
     </div>
   </section>
@@ -430,8 +582,11 @@
     // s is "YYYYMMDD"
     return new Date(s.slice(0,4) + '-' + s.slice(4,6) + '-' + s.slice(6,8) + 'T00:00:00');
   }
+  var MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   function shortDate(s){
-    return parseFlexDate(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    // Site-wide date format: "20 Jan 2026"
+    var y = s.slice(0,4), m = parseInt(s.slice(4,6),10)-1, d = parseInt(s.slice(6,8),10);
+    return String(d).padStart(2,'0') + ' ' + MONTH_ABBR[m] + ' ' + y;
   }
   function formatCurrency(n){
     return '$' + Math.round(n).toLocaleString();
@@ -520,11 +675,205 @@
     }
   }
 
+  // ============ Dashboard-specific helpers ============
+  function fmtDate(s){ return shortDate(s); }
+  function fmtMonth(s){ var y = s.slice(0,4), m = parseInt(s.slice(4,6),10)-1; return MONTH_ABBR[m]+' '+y; }
+  function fmtWeek(s){ return 'Week of '+MONTH_ABBR[parseInt(s.slice(4,6),10)-1]+' '+String(parseInt(s.slice(6,8),10)).padStart(2,'0')+' '+s.slice(0,4); }
+  function fmtPctD(n, decimals){ decimals = decimals===undefined?1:decimals; if(n===null||n===undefined) return '—'; var s = n>0?'+':''; return s+n.toFixed(decimals)+'%'; }
+  function fmtNum(n, decimals){ decimals = decimals===undefined?2:decimals; if(n===null||n===undefined) return '—'; var s = n>0?'+':''; return s+n.toFixed(decimals); }
+  function fmtCurrencyD(n){ if(n===null||n===undefined) return '—'; var s = n>=0?'+$':'-$'; return s+Math.abs(Math.round(n)).toLocaleString(); }
+  function cls(n){ if(n===null||n===undefined) return ''; return n>0?'gain':(n<0?'loss':''); }
+
+  function tile(label, tooltip, value, valueClass, sub){
+    return '<div class="metric-tile">'+
+      '<span class="metric-label">'+label+'<span class="info-dot">i</span><span class="tooltip">'+tooltip+'</span></span>'+
+      '<div class="metric-value '+(valueClass||'')+'">'+value+'</div>'+
+      (sub ? '<div class="metric-sub">'+sub+'</div>' : '') +
+    '</div>';
+  }
+  function pendingTile(label, tooltip, needText){
+    return '<div class="metric-tile pending">'+
+      '<span class="metric-label">'+label+'<span class="info-dot">i</span><span class="tooltip">'+tooltip+'</span></span>'+
+      '<div class="metric-value" style="color:var(--muted); font-size:1.1rem;">Needs data</div>'+
+      '<div class="pending-note">'+needText+'</div>'+
+    '</div>';
+  }
+
+  function renderDashboard(M){
+    document.getElementById('riskGrid').innerHTML =
+      tile('Sharpe Ratio', 'Return earned per unit of total volatility, annualized. Above 1 is generally considered good, above 2 very good, below 0 means the strategy lost money after adjusting for risk.', fmtNum(M.sharpe), M.sharpe>1?'gain':(M.sharpe<0?'loss':'caution')) +
+      tile('Sortino Ratio', 'Like Sharpe, but only penalizes downside volatility (losing days), not all volatility — a fairer measure when a strategy has more upside swings than downside ones.', fmtNum(M.sortino), M.sortino>1?'gain':(M.sortino<0?'loss':'caution')) +
+      tile('Calmar Ratio', 'Total return divided by the maximum drawdown. Above 1 means the strategy earned more than its worst peak-to-trough loss.', fmtNum(M.calmar), M.calmar>1?'gain':(M.calmar<0?'loss':'caution')) +
+      tile('Omega Ratio', 'Ratio of total gains to total losses across all days, relative to a zero threshold. Above 1 means gains outweigh losses.', fmtNum(M.omega), M.omega>1?'gain':'loss') +
+      tile('Gain-to-Pain Ratio', 'Sum of all monthly gains divided by the sum of all monthly losses. Above 1 means winning months outweigh losing months.', fmtNum(M.gain_to_pain), M.gain_to_pain>1?'gain':'loss') +
+      tile('Tail Ratio', 'Compares the size of your best days (95th percentile) to your worst days (5th percentile). Above 1 means your best days are bigger than your worst days.', fmtNum(M.tail_ratio), M.tail_ratio>1?'gain':'caution') +
+      tile('Value at Risk (95%)', 'On the worst 5% of days historically, the daily loss met or exceeded this percentage of account value.', fmtPctD(M.var_95_pct), 'loss') +
+      tile('Conditional VaR (95%)', 'The average loss on the worst 5% of days — a fuller picture of tail risk than VaR alone, since it captures how bad the bad days actually get.', fmtPctD(M.cvar_95_pct), 'loss') +
+      tile('Ulcer Index', 'Measures the depth and duration of drawdowns combined into one number — named for the "ulcer" a long, deep drawdown causes. Lower is more comfortable to hold.', fmtNum(M.ulcer_index), M.ulcer_index>15?'loss':'gain') +
+      tile('Ulcer Performance Index', 'Return divided by the Ulcer Index — a Sharpe-like ratio that penalizes long, painful drawdowns more than short volatile ones.', fmtNum(M.ulcer_perf_index), M.ulcer_perf_index>0?'gain':'loss') +
+      tile('Skewness', 'Whether daily returns lean toward extreme gains (positive) or extreme losses (negative). Positive skew means occasional big wins outweigh the frequency of big losses.', fmtNum(M.skew), M.skew>0?'gain':'loss') +
+      tile('Kurtosis (excess)', 'How "fat-tailed" the return distribution is — how often extreme days happen relative to a normal distribution. Higher values mean more risk of surprise large moves in either direction.', fmtNum(M.kurtosis), M.kurtosis>3?'caution':'');
+
+    document.getElementById('ddGrid').innerHTML =
+      tile('Return over Max Drawdown', 'Total return divided by the maximum drawdown experienced — the same construction as Calmar Ratio, shown here alongside the drawdown figures directly.', fmtNum(M.romad), M.romad>1?'gain':(M.romad<0?'loss':'caution')) +
+      tile('Recovery Factor', 'Net profit divided by the maximum drawdown in dollars. Above 1 means the strategy has earned back more than its worst loss.', fmtNum(M.recovery_factor), M.recovery_factor>1?'gain':'loss');
+
+    document.getElementById('tradeGrid').innerHTML =
+      tile('Expectancy', 'The average dollar result you can expect per trade, given the current win rate and average win/loss size.', fmtCurrencyD(M.expectancy), cls(M.expectancy)) +
+      tile('Payoff Ratio', 'Average winning trade size divided by average losing trade size. Above 1 means wins are typically bigger than losses.', fmtNum(M.payoff_ratio), M.payoff_ratio>1?'gain':'loss') +
+      tile('Average Win', 'Mean dollar result across all profitable closed positions.', fmtCurrencyD(M.avg_win), 'gain') +
+      tile('Average Loss', 'Mean dollar result across all losing closed positions.', fmtCurrencyD(M.avg_loss), 'loss') +
+      tile('Largest Win', 'The single most profitable closed position in the period.', fmtCurrencyD(M.largest_win), 'gain') +
+      tile('Largest Loss', 'The single largest losing closed position in the period.', fmtCurrencyD(M.largest_loss), 'loss') +
+      tile('Kelly Criterion', 'The theoretically optimal fraction of capital to risk per trade, given the current win rate and payoff ratio. Negative means the current edge does not mathematically justify sizing up.', fmtPctD(M.kelly_pct), M.kelly_pct>0?'gain':'loss') +
+      tile('Avg R-Multiple', 'Average trade result expressed in multiples of your defined risk unit (R = 0.25% of starting capital, ~$'+Math.round(M.R_unit_dollars)+'). +1R means a trade won exactly what was risked.', fmtNum(M.avg_r_multiple,2)+'R', cls(M.avg_r_multiple)) +
+      tile('Total R-Value', 'Sum of every trade&#39;s R-multiple — a size-independent running score of the strategy&#39;s edge over the whole period.', fmtNum(M.total_r_value,1)+'R', cls(M.total_r_value)) +
+      tile('Avg Hold — Winners', 'Average time a position stayed open before closing profitably, from first fill to last.', (M.avg_hold_win_hours!=null?M.avg_hold_win_hours.toFixed(1):'—')+' hrs') +
+      tile('Avg Hold — Losers', 'Average time a position stayed open before closing at a loss, from first fill to last.', (M.avg_hold_loss_hours!=null?M.avg_hold_loss_hours.toFixed(1):'—')+' hrs') +
+      (M.avg_leverage_at_entry!=null ? tile('Avg Leverage (at entry)', 'Notional exposure relative to account NAV at the moment each trade was opened, averaged across trades. This is a per-trade snapshot, not a continuous daily leverage figure across all simultaneously open positions.', fmtNum(M.avg_leverage_at_entry,1)+'x') : '');
+
+    document.getElementById('consistencyGrid').innerHTML =
+      tile('Green Days', 'Percentage of trading days that closed with a net profit.', fmtPctD(M.green_day_pct,1), M.green_day_pct>50?'gain':'caution') +
+      tile('Green Weeks', 'Percentage of calendar weeks that closed with a net profit.', fmtPctD(M.green_week_pct,1), M.green_week_pct>50?'gain':'caution') +
+      tile('Green Months', 'Percentage of calendar months that closed with a net profit.', fmtPctD(M.green_month_pct,1), M.green_month_pct>50?'gain':'caution') +
+      tile('Longest Win Streak (days)', 'The most consecutive trading days in a row that each closed positive.', M.max_win_streak_days, 'gain') +
+      tile('Longest Loss Streak (days)', 'The most consecutive trading days in a row that each closed negative.', M.max_loss_streak_days, 'loss') +
+      tile('Longest Win Streak (weeks)', 'The most consecutive calendar weeks in a row that each closed positive.', M.max_win_streak_weeks, 'gain') +
+      tile('Longest Loss Streak (weeks)', 'The most consecutive calendar weeks in a row that each closed negative.', M.max_loss_streak_weeks, 'loss') +
+      tile('Longest Win Streak (months)', 'The most consecutive calendar months in a row that each closed positive.', M.max_win_streak_months, 'gain') +
+      tile('Longest Loss Streak (months)', 'The most consecutive calendar months in a row that each closed negative.', M.max_loss_streak_months, 'loss') +
+      tile('Daily Loss Limit Breach %', 'Percentage of trading days where the day\u2019s close-to-close result met or exceeded the '+M.daily_loss_limit_pct+'% daily drawdown threshold. Based on day-end NAV, not intraday tracking, since Flex data only reports end-of-day values.', fmtPctD(M.daily_breach_pct,1), 'loss', M.daily_breach_count+' of '+M.total_trading_days+' days');
+
+    document.getElementById('pnlGrid').innerHTML =
+      tile('Total P&amp;L', 'Net dollar profit or loss across the entire period shown.', fmtCurrencyD(M.total_pnl), cls(M.total_pnl)) +
+      tile('Avg P&amp;L per Trade', 'Total P&amp;L divided by the number of closed positions.', fmtCurrencyD(M.total_pnl/M.total_trades), cls(M.total_pnl)) +
+      tile('Avg P&amp;L per Day', 'Total P&amp;L divided by the number of trading days.', fmtCurrencyD(M.avg_daily_pnl), cls(M.avg_daily_pnl)) +
+      tile('Avg P&amp;L per Week', 'Total P&amp;L divided by the number of calendar weeks.', fmtCurrencyD(M.avg_weekly_pnl), cls(M.avg_weekly_pnl)) +
+      tile('Avg P&amp;L per Month', 'Total P&amp;L divided by the number of calendar months.', fmtCurrencyD(M.avg_monthly_pnl), cls(M.avg_monthly_pnl)) +
+      tile('CAGR', 'Compound annual growth rate — the return annualized as if this pace continued for a full year. Shown with reduced confidence given under one year of history.', fmtPctD(M.cagr_pct), cls(M.cagr_pct), 'Based on '+M.years_elapsed.toFixed(2)+' years of history — treat with caution') +
+      tile('Best Day', 'The single most profitable trading day in the period.', fmtCurrencyD(M.best_day[1]), 'gain', fmtDate(M.best_day[0])) +
+      tile('Worst Day', 'The single worst trading day in the period.', fmtCurrencyD(M.worst_day[1]), 'loss', fmtDate(M.worst_day[0])) +
+      tile('Best Week', 'The most profitable calendar week in the period.', fmtCurrencyD(M.best_week[1]), 'gain', fmtWeek(M.best_week[0])) +
+      tile('Worst Week', 'The worst calendar week in the period.', fmtCurrencyD(M.worst_week[1]), 'loss', fmtWeek(M.worst_week[0])) +
+      tile('Best Month', 'The most profitable calendar month in the period.', fmtCurrencyD(M.best_month[1]), 'gain', fmtMonth(M.best_month[0])) +
+      tile('Worst Month', 'The worst calendar month in the period.', fmtCurrencyD(M.worst_month[1]), 'loss', fmtMonth(M.worst_month[0]));
+
+    document.getElementById('instrTable').innerHTML =
+      '<thead><tr><th>Category</th><th>Instrument</th><th class="num">Value</th></tr></thead><tbody>'+
+      '<tr><td>Most traded</td><td>'+M.most_traded_instrument[0]+'</td><td class="num">'+M.most_traded_instrument[1]+' trades</td></tr>'+
+      '<tr><td>Most profitable</td><td>'+M.most_profitable_instrument[0]+'</td><td class="num" style="color:var(--gain)">'+fmtCurrencyD(M.most_profitable_instrument[1])+'</td></tr>'+
+      '<tr><td>Least profitable</td><td>'+M.least_profitable_instrument[0]+'</td><td class="num" style="color:var(--loss)">'+fmtCurrencyD(M.least_profitable_instrument[1])+'</td></tr>'+
+      '</tbody>';
+
+    document.getElementById('pendingGrid').innerHTML =
+      pendingTile('Alpha', 'Excess return versus a benchmark (e.g. ES or SPX), adjusted for market exposure.', 'Needs a benchmark price series — feasible via IBKR price history, not yet pulled.') +
+      pendingTile('Beta', 'Sensitivity of account returns to benchmark market moves. Beta of 1 means it moves with the market; below 1 means less sensitive.', 'Needs the same benchmark series as Alpha.');
+
+    function buildHwmSeries(navSeries){
+      var peak = navSeries[0][1];
+      return navSeries.map(function(p){ if(p[1]>peak) peak=p[1]; return [p[0], peak]; });
+    }
+    function buildUnderwaterSeries(navSeries){
+      var peak = navSeries[0][1];
+      return navSeries.map(function(p){ if(p[1]>peak) peak=p[1]; return [p[0], (p[1]-peak)/peak*100]; });
+    }
+    function drawLineChart(svgId, series, color){
+      var svg = document.getElementById(svgId);
+      var vals = series.map(function(p){ return p[1]; });
+      var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+      var range = (max-min)||1;
+      var W=500,H=180,padTop=10,padBottom=10;
+      var innerH = H-padTop-padBottom;
+      var pts = series.map(function(p,i){
+        var x = (i/(series.length-1))*W;
+        var y = padTop + innerH - ((p[1]-min)/range)*innerH;
+        return [x,y];
+      });
+      var lineStr = pts.map(function(p){ return p[0].toFixed(1)+','+p[1].toFixed(1); }).join(' ');
+      var areaStr = 'M0,'+H+' L'+lineStr.split(' ').join(' L')+' L'+W+','+H+' Z';
+      svg.innerHTML = '<path d="'+areaStr+'" fill="'+color+'" fill-opacity="0.08" stroke="none"></path>'+
+        '<polyline points="'+lineStr+'" fill="none" stroke="'+color+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></polyline>';
+    }
+    var hwmSeries = buildHwmSeries(M.nav_series);
+    var uwSeries = buildUnderwaterSeries(M.nav_series);
+    drawLineChart('hwmSvg', hwmSeries, 'var(--gain)');
+    drawLineChart('underwaterSvg', uwSeries, 'var(--loss)');
+    document.getElementById('hwmStart').textContent = fmtDate(hwmSeries[0][0]);
+    document.getElementById('hwmEnd').textContent = fmtDate(hwmSeries[hwmSeries.length-1][0]);
+    document.getElementById('uwStart').textContent = fmtDate(uwSeries[0][0]);
+    document.getElementById('uwEnd').textContent = fmtDate(uwSeries[uwSeries.length-1][0]);
+
+    var DAILY = M.daily_pnl;
+    function pnlColor(pnl, maxAbs){
+      if(pnl === undefined) return '#f0efe9';
+      var t = Math.min(Math.abs(pnl)/maxAbs, 1);
+      if(pnl > 0){
+        var shadesG = ['#e3f0e8','#9dc4ac','#5a9877','#1f6f4a'];
+        return shadesG[t < 0.1 ? 0 : t < 0.4 ? 1 : t < 0.7 ? 2 : 3];
+      } else if(pnl < 0){
+        var shadesL = ['#f6e5e0','#e8b8ac','#c97e6a','#a23b2c'];
+        return shadesL[t < 0.1 ? 0 : t < 0.4 ? 1 : t < 0.7 ? 2 : 3];
+      }
+      return '#f0efe9';
+    }
+    var maxAbsPnl = Math.max.apply(null, Object.keys(DAILY).map(function(k){ return Math.abs(DAILY[k].pnl); }));
+    var MONTH_NAMES_FULL = MONTH_ABBR.map(function(m){ return m+' 2026'; });
+    var calGrid = document.getElementById('calGrid');
+    calGrid.innerHTML = '';
+    for(var m=0;m<12;m++){
+      var year = 2026;
+      var firstDay = new Date(year, m, 1);
+      var daysInMonth = new Date(year, m+1, 0).getDate();
+      var startWeekday = (firstDay.getDay()+6)%7;
+      var total = 0, hasData = false;
+      var cellsHtml = '';
+      for(var i=0;i<startWeekday;i++) cellsHtml += '<div class="cal-cell empty"></div>';
+      for(var day=1; day<=daysInMonth; day++){
+        var key = String(year)+String(m+1).padStart(2,'0')+String(day).padStart(2,'0');
+        var d = DAILY[key];
+        var color = d ? pnlColor(d.pnl, maxAbsPnl) : '#f0efe9';
+        if(d){ total += d.pnl; hasData = true; }
+        var tip = d ? (fmtDate(key)+': '+(d.pnl>=0?'+':'')+'$'+Math.round(d.pnl).toLocaleString()+' · '+d.trades+' trades ('+d.wins+'W/'+d.losses+'L)') : (fmtDate(key)+': no trading');
+        cellsHtml += '<div class="cal-cell" style="background:'+color+'"><span class="cell-tip">'+tip+'</span></div>';
+      }
+      var totalStr = hasData ? (total>=0?'+$':'-$')+Math.abs(Math.round(total)).toLocaleString() : '—';
+      var totalColor = hasData ? (total>=0?'var(--gain)':'var(--loss)') : 'var(--muted)';
+      calGrid.innerHTML += '<div class="cal-month"><h5>'+MONTH_NAMES_FULL[m]+' <span class="m-total" style="color:'+totalColor+'">'+totalStr+'</span></h5>'+
+        '<div class="cal-dow"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>'+
+        '<div class="cal-cells">'+cellsHtml+'</div></div>';
+    }
+
+    function mondayOf(dateKey){
+      var d = new Date(dateKey.slice(0,4)+'-'+dateKey.slice(4,6)+'-'+dateKey.slice(6,8)+'T00:00:00');
+      var dayNum = (d.getDay()+6)%7;
+      d.setDate(d.getDate()-dayNum);
+      return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+    }
+    var weeks = {};
+    Object.keys(DAILY).sort().forEach(function(key){
+      var d = DAILY[key];
+      var wk = mondayOf(key);
+      if(!weeks[wk]) weeks[wk] = {total:0, trades:0, wins:0};
+      weeks[wk].total += d.pnl;
+      weeks[wk].trades += d.trades;
+      weeks[wk].wins += d.wins;
+    });
+    var weekBody = document.getElementById('weekTableBody');
+    weekBody.innerHTML = '';
+    Object.keys(weeks).sort().forEach(function(wk){
+      var w = weeks[wk];
+      var wr = w.trades>0 ? (w.wins/w.trades*100).toFixed(0)+'%' : '—';
+      var color = w.total>=0?'var(--gain)':'var(--loss)';
+      weekBody.innerHTML += '<tr><td>'+fmtWeek(wk)+'</td><td style="color:'+color+'">'+(w.total>=0?'+$':'-$')+Math.abs(Math.round(w.total)).toLocaleString()+'</td><td>'+w.trades+'</td><td>'+wr+'</td></tr>';
+    });
+  }
+
   fetch('data.json', { cache: 'no-store' })
     .then(function(res){ if(!res.ok) throw new Error('no data.json yet'); return res.json(); })
     .then(function(d){
       renderCurve(d.nav_series);
       renderMonthlyReturns(d.monthly_returns, d.launch_date);
+      renderDashboard(d);
 
       if(d.launch_date){ document.getElementById('perfLaunch').textContent = shortDate(d.launch_date); }
       if(d.monthly_returns){
@@ -580,6 +929,8 @@
       if(panel) panel.style.display = 'none';
       var recordPanel = document.querySelector('.record-panel');
       if(recordPanel) recordPanel.style.display = 'none';
+      var dashboard = document.getElementById('dashboard');
+      if(dashboard) dashboard.style.display = 'none';
     });
 
   document.addEventListener('click', function(e){
