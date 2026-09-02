@@ -648,6 +648,102 @@ def compute_monthly_returns(rows: list) -> dict:
 
 
 # ============================================================
+# Alpha / Beta vs a public benchmark (not from IBKR - see note)
+# ============================================================
+#
+# Alpha and Beta need a benchmark's own daily returns to compare
+# against, not anything from your brokerage account. Pulling that
+# from IBKR itself would require its separate Client Portal Web API
+# with OAuth 1.0a - a materially heavier setup than the Flex Web
+# Service token this script otherwise relies on, and not practical to
+# run unattended in GitHub Actions without registering an OAuth app.
+#
+# Since the S&P 500's daily closing price is public information, this
+# pulls it from Stooq (stooq.com), a free historical-data source that
+# needs no API key or authentication. If Stooq's endpoint format ever
+# changes, this is the one place to fix it - the rest of the script
+# doesn't depend on it, and a failure here does not fail the whole run
+# (Alpha/Beta are simply omitted from data.json, the same as any other
+# metric this script can't currently support).
+
+BENCHMARK_URL = "https://stooq.com/q/d/l/?s=%5Espx&d1={start}&d2={end}&i=d"
+
+
+def fetch_benchmark_closes(start_date: str, end_date: str) -> dict:
+    """
+    Returns {date_str ("YYYYMMDD"): close_price} for the S&P 500 (^SPX)
+    between start_date and end_date (inclusive), both "YYYYMMDD".
+    Raises on any failure - the caller decides whether that's fatal.
+    """
+    url = BENCHMARK_URL.format(start=start_date, end=end_date)
+    csv_text = fetch(url)
+    lines = csv_text.strip().splitlines()
+    if len(lines) < 2 or not lines[0].lower().startswith("date"):
+        raise ValueError(f"Unexpected benchmark CSV format from Stooq: {lines[:2]!r}")
+
+    closes = {}
+    for line in lines[1:]:
+        parts = line.split(",")
+        if len(parts) < 5:
+            continue
+        date_str = parts[0].replace("-", "")  # "2026-01-20" -> "20260120"
+        try:
+            closes[date_str] = float(parts[4])  # Close column
+        except ValueError:
+            continue
+    if not closes:
+        raise ValueError("Benchmark fetch succeeded but no rows were parsed")
+    return closes
+
+
+def compute_alpha_beta(rows: list) -> dict:
+    """
+    Beta = covariance(strategy returns, benchmark returns) / variance(benchmark returns)
+    Alpha = (mean strategy return - Beta * mean benchmark return), annualized to a %.
+    Only dates present in BOTH the account's NAV series and the
+    benchmark are used, so a few missing benchmark days (holidays,
+    data gaps) don't break the whole calculation - they're just
+    excluded from both sides.
+    """
+    start_date, end_date = rows[0][0], rows[-1][0]
+    benchmark_closes = fetch_benchmark_closes(start_date, end_date)
+
+    strategy_returns, benchmark_returns = [], []
+    for i in range(1, len(rows)):
+        date_str, nav = rows[i]
+        prev_nav = rows[i - 1][1]
+        prev_date = rows[i - 1][0]
+        if date_str not in benchmark_closes or prev_date not in benchmark_closes:
+            continue
+        strategy_returns.append((nav - prev_nav) / prev_nav)
+        benchmark_returns.append(
+            (benchmark_closes[date_str] - benchmark_closes[prev_date]) / benchmark_closes[prev_date]
+        )
+
+    n = len(strategy_returns)
+    if n < 10:  # too few overlapping days for a meaningful regression
+        raise ValueError(f"Only {n} overlapping days between account and benchmark - too few for Alpha/Beta")
+
+    mean_s = sum(strategy_returns) / n
+    mean_b = sum(benchmark_returns) / n
+    covariance = sum((strategy_returns[i] - mean_s) * (benchmark_returns[i] - mean_b) for i in range(n)) / n
+    variance_b = sum((b - mean_b) ** 2 for b in benchmark_returns) / n
+
+    if variance_b == 0:
+        raise ValueError("Benchmark showed zero variance over this period - cannot compute Beta")
+
+    beta = covariance / variance_b
+    alpha_daily = mean_s - beta * mean_b
+    alpha_annualized_pct = alpha_daily * 252 * 100.0
+
+    return {
+        "alpha_pct": _r(alpha_annualized_pct),
+        "beta": _r(beta),
+        "benchmark_overlap_days": n,
+    }
+
+
+# ============================================================
 # Top-level orchestration
 # ============================================================
 
@@ -687,6 +783,14 @@ def compute_stats(xml_text: str) -> dict:
 
     stats["daily_pnl"] = {d: v for d, v in daily.items()}
     stats["launch_date"] = stats["period_start"]
+
+    try:
+        stats.update(compute_alpha_beta(rows))
+    except (URLError, RuntimeError, ValueError) as exc:
+        # Alpha/Beta are a nice-to-have, not core to the site - a
+        # benchmark fetch hiccup shouldn't take down return, drawdown,
+        # or anything else this script computes from your own account.
+        print(f"Alpha/Beta not computed this run: {exc}", file=sys.stderr)
 
     return stats
 
