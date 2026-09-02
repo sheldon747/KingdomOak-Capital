@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Fetches account data from an IBKR Flex Query and writes return, max
-drawdown, win rate, and profit factor into data.json for the website
-to read.
+Fetches account data from an IBKR Flex Query and writes the full
+performance dashboard - return, drawdown, risk-adjusted ratios, trade
+statistics, consistency metrics, and a daily P&L calendar - into
+data.json for the website to read.
 
 Requires two secrets, passed as environment variables:
   FLEX_TOKEN     - the token shown when you activate Flex Web Service
@@ -10,30 +11,50 @@ Requires two secrets, passed as environment variables:
   FLEX_QUERY_ID  - the numeric ID of the Flex Query you create
                    (Reports > Flex Queries)
 
-The Flex Query itself must include TWO sections:
-  1. "Equity Summary by Report Date in Base" - used for return and max
-     drawdown (a daily NAV series over whatever period you configure,
-     e.g. "Year to Date").
-  2. "Trades" (the Trade Confirmation / Executions section) - used for
-     win rate and profit factor. Fills for the same instrument are
-     grouped chronologically and tracked by running position size;
-     realized P&L accumulates while a position is open, and a "trade"
-     is recorded when the position returns to flat. Scaling out of one
-     position across several fills counts as one trade, not several.
+Optional environment variables:
+  PERFORMANCE_START_DATE  - "YYYYMMDD". The exact date trading began,
+                             used as the inception baseline instead of
+                             a heuristic. See compute_nav_stats.
+  DAILY_LOSS_LIMIT_PCT    - the daily drawdown percentage that counts
+                             as a circuit-breaker breach. Defaults to
+                             -2.0, taken from KingdomOak's SOP circuit
+                             breaker threshold. Only the numeric
+                             threshold is used here - the SOP's
+                             surrounding enforcement narrative and any
+                             violation history stay internal and are
+                             never pulled onto the public site.
 
-If the Trades section is missing or empty, win rate and profit factor
-are simply omitted from data.json rather than guessed at - the site's
-JS hides those two stat boxes when the fields aren't present.
+The Flex Query must include:
+  1. "Equity Summary by Report Date in Base" (Report Date, Total) -
+     the daily NAV series every return/risk/drawdown/consistency
+     metric is built from.
+  2. "Trades" (Execution) with at least: Conid, Symbol, Date/Time,
+     Trade Date, Quantity, Buy/Sell, Open/Close Indicator, Realized
+     P/L, Multiplier, Trade Price. UnderlyingSymbol is included
+     automatically by IBKR's standard Trades export and is what
+     instrument-breakdown stats group on (it's the clean root ticker,
+     e.g. "ES", rather than the dated contract code like "ESH6").
 
-Never hardcode FLEX_TOKEN or FLEX_QUERY_ID in this file. In GitHub
-Actions they are injected as env vars from repository secrets (see
-the workflow file).
+Currency-conversion rows (assetCategory="CASH", e.g. USD.CAD) are
+excluded from every trade-level statistic - they're not trades.
+
+Position-level P&L is computed by tracking running quantity per
+instrument (conid) chronologically; a "trade" is one full cycle from
+flat to open to flat again, so scaling out of a position across
+several fills counts once, not multiple times.
+
+Nothing here fabricates a number it can't support. Metrics that need
+data this script doesn't have (Alpha/Beta vs a benchmark, true
+tick-level MFE/MAE) are simply not computed - see the dashboard's own
+"needs data" tiles for what's still pending and why.
 """
 
 import os
 import sys
 import time
+import math
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
 from urllib.request import urlopen
 from urllib.error import URLError
 
@@ -42,7 +63,14 @@ GET_STATEMENT_URL = "https://ndcdyn.interactivebrokers.com/AccountManagement/Fle
 
 MAX_POLL_ATTEMPTS = 10
 POLL_DELAY_SECONDS = 15
+EPSILON = 1e-6
 
+MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+# ============================================================
+# Flex Web Service fetching (unchanged mechanics)
+# ============================================================
 
 def fetch(url: str) -> str:
     with urlopen(url, timeout=30) as resp:
@@ -50,17 +78,14 @@ def fetch(url: str) -> str:
 
 
 def request_statement(token: str, query_id: str) -> str:
-    """Kicks off the Flex report and returns a reference code to poll for the result."""
     url = f"{SEND_REQUEST_URL}?t={token}&q={query_id}&v=3"
     xml_text = fetch(url)
     root = ET.fromstring(xml_text)
-
     status = root.findtext("Status")
     if status != "Success":
         error_code = root.findtext("ErrorCode", "unknown")
         error_msg = root.findtext("ErrorMessage", "no message")
         raise RuntimeError(f"Flex request failed ({error_code}): {error_msg}")
-
     reference_code = root.findtext("ReferenceCode")
     if not reference_code:
         raise RuntimeError("Flex request succeeded but returned no ReferenceCode")
@@ -68,35 +93,29 @@ def request_statement(token: str, query_id: str) -> str:
 
 
 def poll_for_statement(token: str, reference_code: str) -> str:
-    """IBKR generates the report asynchronously; poll until it's ready."""
     url = f"{GET_STATEMENT_URL}?q={reference_code}&t={token}&v=3"
-
     for attempt in range(1, MAX_POLL_ATTEMPTS + 1):
         xml_text = fetch(url)
-
-        # A "still generating" response is a small <FlexStatementResponse> with
-        # an error code (typically 1019) rather than the actual report.
         if "<FlexStatementResponse" in xml_text and "<ErrorCode>" in xml_text:
             root = ET.fromstring(xml_text)
             error_code = root.findtext("ErrorCode")
-            if error_code == "1019":  # statement generation in progress
+            if error_code == "1019":
                 time.sleep(POLL_DELAY_SECONDS)
                 continue
             error_msg = root.findtext("ErrorMessage", "no message")
             raise RuntimeError(f"Flex statement error ({error_code}): {error_msg}")
-
         return xml_text
-
     raise TimeoutError("Flex statement never became ready within the polling window")
 
+
+# ============================================================
+# NAV series: return, drawdown, and every risk-adjusted ratio
+# ============================================================
 
 def compute_nav_stats(root: ET.Element) -> dict:
     entries = root.findall(".//EquitySummaryByReportDateInBase")
     if not entries:
-        raise ValueError(
-            "No EquitySummaryByReportDateInBase rows found. "
-            "Make sure the Flex Query includes that section."
-        )
+        raise ValueError("No EquitySummaryByReportDateInBase rows found.")
 
     rows = []
     for e in entries:
@@ -105,41 +124,17 @@ def compute_nav_stats(root: ET.Element) -> dict:
         if report_date is None or total is None:
             continue
         rows.append((report_date, float(total)))
-
     rows.sort(key=lambda r: r[0])
 
-    # Flex Query periods like "Year to Date" often include a leading
-    # reference row (e.g. prior year-end) and any dates before the
-    # account was actually funded, where total == 0 or still ramping
-    # up through a multi-day deposit. Using an early, tiny NAV as the
-    # starting point produces a technically-correct but meaningless
-    # percentage (e.g. a $36 starting balance growing to $56,000 reads
-    # as a six-figure percentage return).
-    #
-    # If PERFORMANCE_START_DATE (format YYYYMMDD) is set, that exact
-    # date is used as day one. For this account, deposits completed
-    # before 2026-01-20 and trading began that day, so set this
-    # secret to "20260120" once wiring up GitHub Actions rather than
-    # relying on the heuristic below (confirmed against the account's
-    # actual deposit history rather than inferred from NAV shape).
-    # Without it, as a fallback default, the first day where NAV
-    # reaches at least 50% of the period's peak NAV is used as a
-    # rough stand-in for "fully funded" - a heuristic, not a precise
-    # answer, and worth re-verifying each year once "Year to Date"
-    # periods reset in January.
     start_date_override = os.environ.get("PERFORMANCE_START_DATE")
     if start_date_override:
         rows = [r for r in rows if r[0] >= start_date_override]
         if not rows:
-            raise ValueError(
-                f"No NAV rows on or after PERFORMANCE_START_DATE={start_date_override}"
-            )
+            raise ValueError(f"No NAV rows on or after PERFORMANCE_START_DATE={start_date_override}")
     else:
         peak_nav = max(nav for _, nav in rows)
         threshold = peak_nav * 0.5
-        first_funded_idx = next(
-            (i for i, (_, nav) in enumerate(rows) if nav >= threshold), None
-        )
+        first_funded_idx = next((i for i, (_, nav) in enumerate(rows) if nav >= threshold), None)
         if first_funded_idx is None:
             raise ValueError("No NAV values found reaching the funding threshold")
         rows = rows[first_funded_idx:]
@@ -148,8 +143,7 @@ def compute_nav_stats(root: ET.Element) -> dict:
         raise ValueError("Not enough NAV data points to compute return/drawdown")
 
     navs = [nav for _, nav in rows]
-    start_nav = navs[0]
-    end_nav = navs[-1]
+    start_nav, end_nav = navs[0], navs[-1]
     return_pct = (end_nav - start_nav) / start_nav * 100.0
 
     peak = navs[0]
@@ -166,132 +160,477 @@ def compute_nav_stats(root: ET.Element) -> dict:
         "period_end": rows[-1][0],
         "return_pct": round(return_pct, 2),
         "max_drawdown_pct": round(max_drawdown_pct, 2),
-        # Full daily series for rendering an equity curve. Kept as
-        # [date, nav] pairs rather than an object per point to keep
-        # data.json smaller - a year of daily points is only a few
-        # hundred rows, so no downsampling is needed at this scale.
         "nav_series": [[d, round(nav, 2)] for d, nav in rows],
+        "_rows": rows,  # internal use only, stripped before writing data.json
     }
 
 
-def compute_trade_stats(root: ET.Element) -> dict:
+def compute_risk_adjusted_stats(rows: list) -> dict:
     """
-    Returns win rate, profit factor, and closed-position count from the
-    Trades section, or an empty dict if that section isn't present.
-
-    Counts per POSITION, not per fill: trades for the same instrument
-    are grouped and processed in chronological order, tracking the
-    running quantity. Realized P&L is accumulated while a position is
-    open; when the running quantity returns to flat (0), that closes
-    one "trade" and the accumulated P&L is recorded as its result.
-    This means scaling out of one position in three fills counts as
-    one trade, not three.
+    Every ratio here is derived purely from day-to-day NAV changes -
+    no benchmark, no assumptions beyond the NAV series itself.
+    Annualization uses a 252-trading-day convention throughout.
     """
-    trades = root.findall(".//Trade")
-    if not trades:
+    navs = [nav for _, nav in rows]
+    daily_returns = [(navs[i] - navs[i - 1]) / navs[i - 1] for i in range(1, len(navs))]
+    n = len(daily_returns)
+    if n < 2:
         return {}
 
-    def signed_qty(t: ET.Element):
+    mean_r = sum(daily_returns) / n
+    var_r = sum((r - mean_r) ** 2 for r in daily_returns) / n
+    std_r = math.sqrt(var_r)
+    downside = [r for r in daily_returns if r < 0]
+    downside_std = math.sqrt(sum(r ** 2 for r in downside) / n) if downside else 0.0
+    ann_factor = math.sqrt(252)
+
+    sharpe = (mean_r / std_r) * ann_factor if std_r > 0 else None
+    sortino = (mean_r / downside_std) * ann_factor if downside_std > 0 else None
+
+    gains_sum = sum(r for r in daily_returns if r > 0)
+    losses_sum = abs(sum(r for r in daily_returns if r < 0))
+    omega = gains_sum / losses_sum if losses_sum > 0 else None
+
+    sorted_r = sorted(daily_returns)
+    var_95 = sorted_r[int(0.05 * n)]
+    tail_slice = sorted_r[: int(0.05 * n) + 1]
+    cvar_95 = sum(tail_slice) / len(tail_slice) if tail_slice else None
+    p95 = sorted_r[int(0.95 * n)]
+    p5 = sorted_r[int(0.05 * n)]
+    tail_ratio = (p95 / abs(p5)) if p5 != 0 else None
+
+    skew = (sum((r - mean_r) ** 3 for r in daily_returns) / n) / (std_r ** 3) if std_r > 0 else None
+    kurt = (sum((r - mean_r) ** 4 for r in daily_returns) / n) / (std_r ** 4) - 3 if std_r > 0 else None
+
+    peak = navs[0]
+    sq_dd_sum = 0.0
+    for v in navs:
+        if v > peak:
+            peak = v
+        dd_pct = (v - peak) / peak * 100
+        sq_dd_sum += dd_pct ** 2
+    ulcer_index = math.sqrt(sq_dd_sum / len(navs))
+
+    total_return_pct = (navs[-1] - navs[0]) / navs[0] * 100.0
+    ulcer_perf_index = (total_return_pct / ulcer_index) if ulcer_index > 0 else None
+
+    max_dd_pct = min(
+        ((v - m) / m * 100 for v, m in zip(navs, _running_peak(navs))), default=0.0
+    )
+    calmar = (total_return_pct / abs(max_dd_pct)) if max_dd_pct != 0 else None
+    romad = calmar  # same construction, kept as a separate key for dashboard clarity
+
+    net_profit_dollars = navs[-1] - navs[0]
+    max_dd_dollars = abs(max_dd_pct) / 100 * peak
+    recovery_factor = abs(net_profit_dollars / max_dd_dollars) if max_dd_dollars != 0 else None
+
+    start_date = datetime.strptime(rows[0][0], "%Y%m%d")
+    end_date = datetime.strptime(rows[-1][0], "%Y%m%d")
+    years_elapsed = (end_date - start_date).days / 365.25
+    total_return_ratio = navs[-1] / navs[0]
+    cagr_pct = (total_return_ratio ** (1 / years_elapsed) - 1) * 100 if years_elapsed > 0 else None
+
+    return {
+        "sharpe": _r(sharpe), "sortino": _r(sortino), "calmar": _r(calmar), "romad": _r(romad),
+        "omega": _r(omega), "var_95_pct": _r(var_95 * 100 if var_95 is not None else None),
+        "cvar_95_pct": _r(cvar_95 * 100 if cvar_95 is not None else None),
+        "tail_ratio": _r(tail_ratio), "skew": _r(skew), "kurtosis": _r(kurt),
+        "ulcer_index": _r(ulcer_index), "ulcer_perf_index": _r(ulcer_perf_index),
+        "recovery_factor": _r(recovery_factor), "cagr_pct": _r(cagr_pct),
+        "years_elapsed": _r(years_elapsed, 3),
+    }
+
+
+def _running_peak(navs):
+    peak = navs[0]
+    out = []
+    for v in navs:
+        if v > peak:
+            peak = v
+        out.append(peak)
+    return out
+
+
+def _r(x, decimals=2):
+    return round(x, decimals) if x is not None else None
+
+
+# ============================================================
+# Trade-level parsing: positions, instrument breakdown, R-multiples
+# ============================================================
+
+def parse_fills(root: ET.Element) -> list:
+    """Returns one dict per fill, excluding currency-conversion (CASH) rows."""
+    fills = []
+    for t in root.findall(".//Trade"):
+        if t.get("assetCategory") == "CASH":
+            continue
         qty_raw = t.get("quantity")
         if qty_raw is None:
-            return None
+            continue
         try:
             qty = float(qty_raw)
         except ValueError:
-            return None
-        # Some Flex configurations report quantity as an unsigned
-        # magnitude with a separate buySell field - normalize to signed.
+            continue
         buy_sell = t.get("buySell")
         if buy_sell == "SELL" and qty > 0:
             qty = -qty
         elif buy_sell == "BUY" and qty < 0:
             qty = abs(qty)
-        return qty
 
-    # Group fills by instrument (conid is the stable IBKR identifier;
-    # fall back to symbol if conid isn't present).
-    by_instrument = {}
-    for t in trades:
-        key = t.get("conid") or t.get("symbol")
-        date_time = t.get("dateTime") or t.get("tradeDate") or ""
-        qty = signed_qty(t)
         pnl_raw = t.get("fifoPnlRealized")
         pnl = float(pnl_raw) if pnl_raw not in (None, "") else 0.0
-        if key is None or qty is None:
-            continue
-        by_instrument.setdefault(key, []).append((date_time, qty, pnl))
 
-    position_pnls = []
-    EPSILON = 1e-6  # guards against float rounding never quite hitting zero
+        multiplier_raw = t.get("multiplier")
+        trade_price_raw = t.get("tradePrice")
+        multiplier = float(multiplier_raw) if multiplier_raw not in (None, "") else None
+        trade_price = float(trade_price_raw) if trade_price_raw not in (None, "") else None
 
-    for key, fills in by_instrument.items():
-        fills.sort(key=lambda f: f[0])
+        fills.append({
+            "conid": t.get("conid"),
+            "underlying_symbol": (t.get("underlyingSymbol") or t.get("symbol") or "Unknown").strip(),
+            "date_time": t.get("dateTime") or t.get("tradeDate") or "",
+            "qty": qty,
+            "pnl": pnl,
+            "multiplier": multiplier,
+            "trade_price": trade_price,
+        })
+    return fills
+
+
+def _parse_dt(s):
+    if ";" in s:
+        date_part, time_part = s.split(";")
+    else:
+        date_part, time_part = s, "000000"
+    return datetime.strptime(date_part + time_part, "%Y%m%d%H%M%S")
+
+
+def build_positions(fills: list) -> list:
+    """
+    Groups fills by instrument (conid) and walks them chronologically,
+    tracking running quantity. A position closes (and is recorded) the
+    moment running quantity returns to flat. Still-open positions at
+    the end of the report window are intentionally excluded - they
+    aren't completed trades yet.
+    """
+    by_conid = {}
+    for f in fills:
+        by_conid.setdefault(f["conid"], []).append(f)
+
+    positions = []
+    for conid, conid_fills in by_conid.items():
+        conid_fills.sort(key=lambda f: f["date_time"])
         running_qty = 0.0
         accumulated_pnl = 0.0
-        for _, qty, pnl in fills:
-            running_qty += qty
-            accumulated_pnl += pnl
+        open_dt = None
+        entry_notional = 0.0
+        underlying = conid_fills[0]["underlying_symbol"]
+        for f in conid_fills:
+            if open_dt is None:
+                open_dt = f["date_time"]
+                if f["multiplier"] and f["trade_price"]:
+                    entry_notional = abs(f["qty"]) * f["multiplier"] * f["trade_price"]
+            running_qty += f["qty"]
+            accumulated_pnl += f["pnl"]
             if abs(running_qty) < EPSILON:
-                position_pnls.append(accumulated_pnl)
+                positions.append({
+                    "pnl": accumulated_pnl,
+                    "open_dt": open_dt,
+                    "close_dt": f["date_time"],
+                    "underlying_symbol": underlying,
+                    "entry_notional": entry_notional,
+                })
                 accumulated_pnl = 0.0
                 running_qty = 0.0
-        # Any fills left with accumulated_pnl but an open running_qty at
-        # the end of the report window are a still-open position - not
-        # yet a completed trade, so intentionally left out of the count.
+                open_dt = None
+                entry_notional = 0.0
+    return positions
 
-    nonzero = [p for p in position_pnls if abs(p) > EPSILON]
+
+def compute_trade_stats(positions: list, inception_nav: float) -> dict:
+    nonzero = [p for p in positions if abs(p["pnl"]) > EPSILON]
     if not nonzero:
         return {}
 
-    wins = [p for p in nonzero if p > 0]
-    losses = [p for p in nonzero if p < 0]
+    wins = [p for p in nonzero if p["pnl"] > 0]
+    losses = [p for p in nonzero if p["pnl"] < 0]
     total_closed = len(nonzero)
+    win_rate = len(wins) / total_closed
 
     result = {
         "total_trades": total_closed,
-        "win_rate_pct": round(len(wins) / total_closed * 100.0, 1),
+        "win_rate_pct": round(win_rate * 100.0, 1),
     }
 
-    gross_profit = sum(wins)
-    gross_loss = abs(sum(losses))
+    gross_profit = sum(p["pnl"] for p in wins)
+    gross_loss = abs(sum(p["pnl"] for p in losses))
     if gross_loss > 0:
         result["profit_factor"] = round(gross_profit / gross_loss, 2)
-    # If there are no losing positions, profit factor is undefined
-    # (division by zero) rather than infinite - omit it instead of
-    # showing a misleading number.
+
+    avg_win = gross_profit / len(wins) if wins else None
+    avg_loss = -gross_loss / len(losses) if losses else None
+    result["avg_win"] = _r(avg_win)
+    result["avg_loss"] = _r(avg_loss)
+    result["largest_win"] = _r(max((p["pnl"] for p in wins), default=None))
+    result["largest_loss"] = _r(min((p["pnl"] for p in losses), default=None))
+
+    expectancy = win_rate * (avg_win or 0) + (1 - win_rate) * (avg_loss or 0)
+    result["expectancy"] = _r(expectancy)
+
+    payoff_ratio = (avg_win / abs(avg_loss)) if (avg_win and avg_loss) else None
+    result["payoff_ratio"] = _r(payoff_ratio)
+
+    kelly = win_rate - (1 - win_rate) / payoff_ratio if payoff_ratio else None
+    result["kelly_pct"] = _r(kelly * 100 if kelly is not None else None)
+
+    def holding_hours(p):
+        try:
+            return (_parse_dt(p["close_dt"]) - _parse_dt(p["open_dt"])).total_seconds() / 3600.0
+        except (ValueError, KeyError):
+            return None
+
+    win_holds = [h for h in (holding_hours(p) for p in wins) if h is not None]
+    loss_holds = [h for h in (holding_hours(p) for p in losses) if h is not None]
+    result["avg_hold_win_hours"] = _r(sum(win_holds) / len(win_holds)) if win_holds else None
+    result["avg_hold_loss_hours"] = _r(sum(loss_holds) / len(loss_holds)) if loss_holds else None
+
+    # R-multiples: R is defined as 0.25% of the account's starting
+    # (inception) NAV - a fixed dollar risk unit, per the stated
+    # 0.25% stop-loss / 0.75% profit-target plan. This does not
+    # resize R as the account grows or shrinks; refine later if a
+    # dynamically-resized R is wanted instead.
+    r_unit = inception_nav * 0.0025
+    r_multiples = [p["pnl"] / r_unit for p in nonzero]
+    result["R_unit_dollars"] = _r(r_unit)
+    result["avg_r_multiple"] = _r(sum(r_multiples) / len(r_multiples), 3)
+    result["total_r_value"] = _r(sum(r_multiples), 1)
+
+    # Leverage: notional exposure at trade entry relative to inception
+    # NAV, averaged across trades. This is a per-trade snapshot, not a
+    # continuous daily leverage series (that would require
+    # reconstructing simultaneous open positions across every
+    # instrument at every point in time, which Flex execution data
+    # alone doesn't give a clean way to do). Only trades with both
+    # Multiplier and Trade Price present are included.
+    notionals = [p["entry_notional"] for p in nonzero if p.get("entry_notional")]
+    if notionals:
+        avg_leverage = (sum(notionals) / len(notionals)) / inception_nav
+        result["avg_leverage_at_entry"] = _r(avg_leverage, 2)
 
     return result
 
 
-MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
-
-def compute_monthly_returns(rows: list) -> dict:
-    """
-    Groups the NAV series into calendar months and returns each month's
-    percentage change relative to the prior month's closing NAV (the
-    very first month is measured against the inception baseline, i.e.
-    rows[0], which is why a partial first month reads as "the account's
-    return since inception through that month," not a full calendar
-    month - this is called out as a footnote on the site rather than
-    silently presented as equivalent to later months).
-
-    This does NOT adjust for interim deposits or withdrawals after
-    inception; it assumes, as the rest of this script does, that all
-    capital was in place by the PERFORMANCE_START_DATE baseline.
-
-    Returns: { "2026": { "Jan": 0.65, "Feb": 0.27, ..., "YTD": 3.19 }, ... }
-    YTD per year is the compounded product of that year's monthly
-    returns, not a simple sum.
-    """
-    if len(rows) < 2:
+def compute_instrument_breakdown(positions: list) -> dict:
+    nonzero = [p for p in positions if abs(p["pnl"]) > EPSILON]
+    if not nonzero:
         return {}
 
+    by_symbol_pnl, by_symbol_count = {}, {}
+    for p in nonzero:
+        sym = p["underlying_symbol"]
+        by_symbol_pnl[sym] = by_symbol_pnl.get(sym, 0) + p["pnl"]
+        by_symbol_count[sym] = by_symbol_count.get(sym, 0) + 1
+
+    most_profitable = max(by_symbol_pnl.items(), key=lambda x: x[1])
+    least_profitable = min(by_symbol_pnl.items(), key=lambda x: x[1])
+    most_traded = max(by_symbol_count.items(), key=lambda x: x[1])
+
+    return {
+        "most_profitable_instrument": [most_profitable[0], _r(most_profitable[1])],
+        "least_profitable_instrument": [least_profitable[0], _r(least_profitable[1])],
+        "most_traded_instrument": [most_traded[0], most_traded[1]],
+    }
+
+
+# ============================================================
+# Daily P&L series: calendar heatmap, consistency, best/worst periods
+# ============================================================
+
+def build_daily_series(rows: list, positions: list) -> dict:
+    """
+    Daily $ P&L comes from NAV-to-NAV differences (captures the whole
+    account's movement - commissions, financing, everything), not
+    summed realized trade P&L. Trade/win/loss counts per day are
+    layered on from each position's close date, for the calendar
+    tooltip only.
+
+    Futures markets trade Sunday evening (CME Globex), but IBKR's
+    daily NAV snapshot doesn't generate a separate Sunday row - that
+    session's activity is folded into the next reporting date. A
+    position closed on a Sunday (or any date with no matching NAV
+    row) is rolled forward to the next date that does have one, so it
+    isn't silently dropped from the calendar/consistency counts.
+    """
+    daily = {}
+    nav_dates_sorted = [d for d, _ in rows]
+    # rows[0] is the inception baseline itself - it has no prior day to
+    # diff against for a $ P&L figure, but trades CAN close on that
+    # exact date, so it still needs an entry (pnl 0.0) or those trades
+    # would be silently dropped from every count that follows.
+    daily[rows[0][0]] = {"pnl": 0.0, "trades": 0, "wins": 0, "losses": 0}
+    for i in range(1, len(rows)):
+        date_str, nav = rows[i]
+        prev_nav = rows[i - 1][1]
+        daily[date_str] = {"pnl": round(nav - prev_nav, 2), "trades": 0, "wins": 0, "losses": 0}
+
+    nav_date_set = set(nav_dates_sorted)
+
+    def roll_forward(date_str):
+        if date_str in nav_date_set:
+            return date_str
+        for candidate in nav_dates_sorted:
+            if candidate > date_str:
+                return candidate
+        return None  # closed after the last NAV row in the report - nothing to attribute to
+
+    for p in positions:
+        if abs(p["pnl"]) <= EPSILON:
+            continue
+        close_date = p["close_dt"].split(";")[0]
+        attributed_date = roll_forward(close_date)
+        if attributed_date is None or attributed_date not in daily:
+            continue
+        daily[attributed_date]["trades"] += 1
+        if p["pnl"] > 0:
+            daily[attributed_date]["wins"] += 1
+        else:
+            daily[attributed_date]["losses"] += 1
+
+    return daily
+
+
+def _monday_of(date_str):
+    d = datetime.strptime(date_str, "%Y%m%d")
+    monday = d - timedelta(days=d.weekday())
+    return monday.strftime("%Y%m%d")
+
+
+def compute_consistency_stats(daily: dict) -> dict:
+    dates_sorted = sorted(daily.keys())
+    pnls = [daily[d]["pnl"] for d in dates_sorted]
+    if not pnls:
+        return {}
+
+    green_day_pct = sum(1 for p in pnls if p > 0) / len(pnls) * 100
+
+    weekly = {}
+    for d in dates_sorted:
+        wk = _monday_of(d)
+        weekly[wk] = weekly.get(wk, 0) + daily[d]["pnl"]
+    week_keys = sorted(weekly.keys())
+    week_vals = [weekly[k] for k in week_keys]
+    green_week_pct = sum(1 for v in week_vals if v > 0) / len(week_vals) * 100 if week_vals else None
+
+    monthly = {}
+    for d in dates_sorted:
+        ym = d[:6]
+        monthly[ym] = monthly.get(ym, 0) + daily[d]["pnl"]
+    month_keys = sorted(monthly.keys())
+    month_vals = [monthly[k] for k in month_keys]
+    green_month_pct = sum(1 for v in month_vals if v > 0) / len(month_vals) * 100 if month_vals else None
+
+    def max_streak(vals, positive=True):
+        best = cur = 0
+        for v in vals:
+            cond = v > 0 if positive else v < 0
+            cur = cur + 1 if cond else 0
+            best = max(best, cur)
+        return best
+
+    daily_limit_pct = float(os.environ.get("DAILY_LOSS_LIMIT_PCT", "-2.0"))
+    daily_pct_changes = []
+    for i in range(1, len(dates_sorted)):
+        pass  # daily % change needs NAV, computed separately in main via nav rows; see below
+
+    return {
+        "green_day_pct": _r(green_day_pct, 1),
+        "green_week_pct": _r(green_week_pct, 1),
+        "green_month_pct": _r(green_month_pct, 1),
+        "max_win_streak_days": max_streak(pnls, True),
+        "max_loss_streak_days": max_streak(pnls, False),
+        "max_win_streak_weeks": max_streak(week_vals, True),
+        "max_loss_streak_weeks": max_streak(week_vals, False),
+        "max_win_streak_months": max_streak(month_vals, True),
+        "max_loss_streak_months": max_streak(month_vals, False),
+        "_daily_limit_pct": daily_limit_pct,
+    }
+
+
+def compute_daily_loss_breach(rows: list, threshold_pct: float) -> dict:
+    """
+    Checks close-to-close daily % change against the SOP's circuit
+    breaker threshold. This is a day-end approximation, not intraday
+    tracking - Flex data only reports end-of-day NAV, so a breach that
+    happened and was recovered from within the same day won't show up
+    here the way a real-time monitor would catch it.
+    """
+    navs = [nav for _, nav in rows]
+    dates = [d for d, _ in rows]
+    pct_changes = [(navs[i] - navs[i - 1]) / navs[i - 1] * 100 for i in range(1, len(navs))]
+    breaches = [p for p in pct_changes if p <= threshold_pct]
+    return {
+        "daily_breach_pct": _r(len(breaches) / len(pct_changes) * 100, 1) if pct_changes else None,
+        "daily_breach_count": len(breaches),
+        "total_trading_days": len(pct_changes),
+        "daily_loss_limit_pct": threshold_pct,
+    }
+
+
+def compute_time_based_stats(daily: dict) -> dict:
+    dates_sorted = sorted(daily.keys())
+    pnls = [daily[d]["pnl"] for d in dates_sorted]
+    if not pnls:
+        return {}
+
+    total_pnl = sum(pnls)
+    best_day_idx = max(range(len(pnls)), key=lambda i: pnls[i])
+    worst_day_idx = min(range(len(pnls)), key=lambda i: pnls[i])
+
+    weekly = {}
+    for d in dates_sorted:
+        wk = _monday_of(d)
+        weekly[wk] = weekly.get(wk, 0) + daily[d]["pnl"]
+    week_keys = sorted(weekly.keys())
+    week_vals = [weekly[k] for k in week_keys]
+    best_week_idx = max(range(len(week_vals)), key=lambda i: week_vals[i])
+    worst_week_idx = min(range(len(week_vals)), key=lambda i: week_vals[i])
+
+    monthly = {}
+    for d in dates_sorted:
+        ym = d[:6]
+        monthly[ym] = monthly.get(ym, 0) + daily[d]["pnl"]
+    month_keys = sorted(monthly.keys())
+    month_vals = [monthly[k] for k in month_keys]
+    best_month_idx = max(range(len(month_vals)), key=lambda i: month_vals[i])
+    worst_month_idx = min(range(len(month_vals)), key=lambda i: month_vals[i])
+
+    return {
+        "total_pnl": _r(total_pnl),
+        "avg_daily_pnl": _r(total_pnl / len(pnls)),
+        "avg_weekly_pnl": _r(total_pnl / len(week_vals)) if week_vals else None,
+        "avg_monthly_pnl": _r(total_pnl / len(month_vals)) if month_vals else None,
+        "best_day": [dates_sorted[best_day_idx], _r(pnls[best_day_idx])],
+        "worst_day": [dates_sorted[worst_day_idx], _r(pnls[worst_day_idx])],
+        "best_week": [week_keys[best_week_idx], _r(week_vals[best_week_idx])],
+        "worst_week": [week_keys[worst_week_idx], _r(week_vals[worst_week_idx])],
+        "best_month": [month_keys[best_month_idx], _r(month_vals[best_month_idx])],
+        "worst_month": [month_keys[worst_month_idx], _r(month_vals[worst_month_idx])],
+    }
+
+
+# ============================================================
+# Monthly returns (% table) - unchanged from the prior version
+# ============================================================
+
+def compute_monthly_returns(rows: list) -> dict:
+    if len(rows) < 2:
+        return {}
     baseline_nav = rows[0][1]
     last_nav_by_year_month = {}
     for date_str, nav in rows[1:]:
         year, month = date_str[:4], int(date_str[4:6])
-        last_nav_by_year_month[(year, month)] = nav  # later dates overwrite, leaving the month's last value
+        last_nav_by_year_month[(year, month)] = nav
 
     results = {}
     prev_nav = baseline_nav
@@ -305,16 +644,50 @@ def compute_monthly_returns(rows: list) -> dict:
         for abbr, pct in months.items():
             compound *= (1 + pct / 100.0)
         months["YTD"] = round((compound - 1) * 100.0, 2)
-
     return results
 
 
+# ============================================================
+# Top-level orchestration
+# ============================================================
+
 def compute_stats(xml_text: str) -> dict:
     root = ET.fromstring(xml_text)
-    stats = compute_nav_stats(root)
-    stats.update(compute_trade_stats(root))
-    stats["monthly_returns"] = compute_monthly_returns(stats["nav_series"])
+
+    nav_stats = compute_nav_stats(root)
+    rows = nav_stats.pop("_rows")
+    inception_nav = rows[0][1]
+
+    fills = parse_fills(root)
+    positions = build_positions(fills)
+
+    stats = dict(nav_stats)
+    stats.update(compute_risk_adjusted_stats(rows))
+    stats.update(compute_trade_stats(positions, inception_nav))
+    stats.update(compute_instrument_breakdown(positions))
+
+    daily = build_daily_series(rows, positions)
+    stats.update(compute_time_based_stats(daily))
+
+    consistency = compute_consistency_stats(daily)
+    daily_limit_pct = consistency.pop("_daily_limit_pct", -2.0)
+    stats.update(consistency)
+    stats.update(compute_daily_loss_breach(rows, daily_limit_pct))
+
+    # Gain-to-Pain Ratio, monthly convention: sum of monthly gains
+    # divided by sum of monthly losses (not the daily version).
+    monthly_returns = compute_monthly_returns(rows)
+    stats["monthly_returns"] = monthly_returns
+    latest_year = max(monthly_returns.keys()) if monthly_returns else None
+    if latest_year:
+        month_vals = [v for k, v in monthly_returns[latest_year].items() if k != "YTD"]
+        gains = sum(v for v in month_vals if v > 0)
+        pains = sum(abs(v) for v in month_vals if v < 0)
+        stats["gain_to_pain"] = _r(gains / pains) if pains > 0 else None
+
+    stats["daily_pnl"] = {d: v for d, v in daily.items()}
     stats["launch_date"] = stats["period_start"]
+
     return stats
 
 
@@ -335,23 +708,17 @@ def main():
         sys.exit(1)
 
     import json
-    from datetime import datetime, timezone
+    from datetime import timezone
 
-    # The Flex Query's "Year to Date" period only ever covers the
-    # current calendar year, so on its own each run would forget prior
-    # years the moment January resets it. Merge this run's monthly
-    # figures into whatever monthly_returns history already exists in
-    # the committed data.json, rather than overwriting it outright.
     existing_monthly_returns = {}
     if os.path.exists("data.json"):
         try:
             with open("data.json") as f:
                 existing_monthly_returns = json.load(f).get("monthly_returns", {})
         except (json.JSONDecodeError, OSError):
-            pass  # a corrupt or missing prior file just means we start fresh
+            pass
 
-    merged_monthly_returns = {**existing_monthly_returns, **stats["monthly_returns"]}
-    stats["monthly_returns"] = merged_monthly_returns
+    stats["monthly_returns"] = {**existing_monthly_returns, **stats["monthly_returns"]}
 
     output = {
         **stats,
@@ -361,7 +728,7 @@ def main():
     with open("data.json", "w") as f:
         json.dump(output, f, indent=2)
 
-    print(f"Wrote data.json: {output}")
+    print(f"Wrote data.json with {len(output)} top-level fields")
 
 
 if __name__ == "__main__":
