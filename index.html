@@ -262,7 +262,7 @@
   .streak-tile .streak-flame{ font-size:1.6rem; line-height:1; margin-top:6px; }
   .metric-grid{
     display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:1px;
-    background:var(--line); border:1px solid var(--line); border-radius:4px; overflow:hidden;
+    background:var(--line); border:1px solid var(--line); border-radius:4px;
   }
   .metric-tile{ background:var(--panel); padding:18px 18px 16px; min-height:96px; }
   .metric-tile.pending{ background:#fafaf8; }
@@ -1107,7 +1107,60 @@
     parts.push('<polyline points="'+actualLine+'" fill="none" stroke="'+actualColor+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></polyline>');
     parts.push('<polyline points="'+trajLine+'" fill="none" stroke="var(--caution)" stroke-width="1.5" stroke-dasharray="5,4" stroke-linejoin="round" stroke-linecap="round"></polyline>');
     parts.push('<circle cx="'+todayPt[0].toFixed(1)+'" cy="'+todayPt[1].toFixed(1)+'" r="3.5" fill="'+actualColor+'" stroke="var(--panel)" stroke-width="1.5"></circle>');
+    parts.push('<line id="goalCrosshair" x1="0" y1="'+padTop+'" x2="0" y2="'+(H-padBottom)+'" stroke="var(--ink)" stroke-width="1" opacity="0" pointer-events="none"></line>');
+    parts.push('<circle id="goalDot" cx="0" cy="0" r="3.5" fill="var(--ink)" stroke="var(--panel)" stroke-width="1.5" opacity="0" pointer-events="none"></circle>');
+    parts.push('<rect id="goalHitArea" x="0" y="0" width="'+W+'" height="'+H+'" fill="transparent"></rect>');
     svg.innerHTML = parts.join('');
+
+    // One merged, time-ordered series (actual first, then required pace)
+    // so a single cursor position can look up the nearest point on
+    // whichever line is closer in time, and report which one it is.
+    var merged = navSeries.map(function(p){ return {date:p[0], nav:p[1], kind:'actual'}; })
+      .concat(trajectory.map(function(p){ return {date:p[0], nav:p[1], kind:'required'}; }));
+
+    var crosshair = document.getElementById('goalCrosshair');
+    var dot = document.getElementById('goalDot');
+    var hitArea = document.getElementById('goalHitArea');
+    var tooltip = document.getElementById('goalTooltip');
+
+    function nearestIndex(clientX){
+      var rect = svg.getBoundingClientRect();
+      var xFrac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      var targetMs = startDate.getTime() + xFrac * totalMs;
+      var best = 0, bestDiff = Infinity;
+      for(var i=0;i<merged.length;i++){
+        var diff = Math.abs(toDateObj(merged[i].date).getTime() - targetMs);
+        if(diff < bestDiff){ bestDiff = diff; best = i; }
+      }
+      return best;
+    }
+
+    function showAt(idx){
+      var m = merged[idx];
+      var px = xOf(m.date), py = yOf(m.nav);
+      crosshair.setAttribute('x1', px); crosshair.setAttribute('x2', px); crosshair.setAttribute('opacity','1');
+      dot.setAttribute('cx', px); dot.setAttribute('cy', py); dot.setAttribute('opacity','1');
+      dot.setAttribute('fill', m.kind === 'actual' ? actualColor : 'var(--caution)');
+      if(tooltip){
+        var pctOfGoal = (m.nav / 1000000 * 100).toFixed(2) + '% of $1M';
+        var daysToDeadline = Math.round((endDate - toDateObj(m.date)) / 86400000);
+        var kindLabel = m.kind === 'actual' ? 'Actual' : 'Required pace';
+        tooltip.style.opacity = '1';
+        tooltip.innerHTML = '<strong>'+kindLabel+'</strong> · '+fmtDate(m.date)+'<br>'+formatCurrency(m.nav)+' · '+pctOfGoal+'<br>'+daysToDeadline+' days to deadline';
+        var leftPct = (px / W) * 100;
+        tooltip.style.left = leftPct + '%';
+        tooltip.style.transform = leftPct > 70 ? 'translateX(-100%)' : (leftPct < 8 ? 'translateX(0%)' : 'translateX(-50%)');
+      }
+    }
+    function hide(){
+      crosshair.setAttribute('opacity','0');
+      dot.setAttribute('opacity','0');
+      if(tooltip) tooltip.style.opacity = '0';
+    }
+    hitArea.addEventListener('mousemove', function(e){ showAt(nearestIndex(e.clientX)); });
+    hitArea.addEventListener('mouseleave', hide);
+    hitArea.addEventListener('touchmove', function(e){ if(e.touches[0]) showAt(nearestIndex(e.touches[0].clientX)); }, {passive:true});
+    hitArea.addEventListener('touchend', hide);
 
     var legend = document.getElementById('goalChartLegend');
     if(legend){
