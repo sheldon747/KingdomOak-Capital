@@ -3197,6 +3197,12 @@
       1000000.0
     ]
   ],
+  "current_streak_green_trades": 1,
+  "current_streak_no_big_loss": 7,
+  "big_loss_threshold_dollars": 500,
+  "current_streak_four_trades_or_fewer": 0,
+  "trade_count_limit": 4,
+  "current_streak_flat_before_close": 1,
   "usic_status": "not_ranked",
-  "updated_at": "2026-09-02T13:25:35+00:00"
+  "updated_at": "2026-09-03T02:26:59+00:00"
 }
