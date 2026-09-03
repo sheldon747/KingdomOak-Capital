@@ -511,6 +511,11 @@
       </div>
 
       <div class="dash-block">
+        <div class="section-head"><h2 style="font-size:1.15rem;">Current streaks</h2></div>
+        <div class="metric-grid" id="streakGrid"></div>
+      </div>
+
+      <div class="dash-block">
         <div class="section-head"><h2 style="font-size:1.15rem;">Consistency</h2></div>
         <div class="metric-grid" id="consistencyGrid"></div>
       </div>
@@ -553,11 +558,6 @@
           <thead><tr><th>Week</th><th>Total P&amp;L</th><th>Trades</th><th>Win rate</th></tr></thead>
           <tbody id="weekTableBody"></tbody>
         </table>
-      </div>
-
-      <div class="dash-block">
-        <div class="section-head"><h2 style="font-size:1.15rem;">Current streaks</h2></div>
-        <div class="metric-grid" id="streakGrid"></div>
       </div>
 
       <div class="dash-block" id="goalSection">
@@ -1133,6 +1133,19 @@
         streakTile('Current day streak', d.current_day_streak, d.current_day_streak_direction) +
         streakTile('Current week streak', d.current_week_streak, d.current_week_streak_direction) +
         streakTile('Current month streak', d.current_month_streak, d.current_month_streak_direction);
+
+      if(typeof d.current_streak_green_trades === 'number'){
+        sg.innerHTML += tile('Green trades in a row', 'How many closed trades in a row have ended profitable, in the order they closed \u2014 resets to 0 the moment a losing trade closes.', d.current_streak_green_trades, d.current_streak_green_trades > 0 ? 'gain' : '');
+      }
+      if(typeof d.current_streak_no_big_loss === 'number'){
+        sg.innerHTML += tile('No loss beyond $'+d.big_loss_threshold_dollars+' streak', 'Consecutive closed trades where any loss stayed at $'+d.big_loss_threshold_dollars+' or less. A win of any size keeps this alive; a loss bigger than $'+d.big_loss_threshold_dollars+' resets it.', d.current_streak_no_big_loss, d.current_streak_no_big_loss > 0 ? 'gain' : 'loss');
+      }
+      if(typeof d.current_streak_four_trades_or_fewer === 'number'){
+        sg.innerHTML += tile(d.trade_count_limit+' trades or fewer streak', 'Consecutive trading days with '+d.trade_count_limit+' or fewer closed trades \u2014 a discipline check against overtrading, reset by any day that goes over.', d.current_streak_four_trades_or_fewer, d.current_streak_four_trades_or_fewer > 0 ? 'gain' : 'loss');
+      }
+      if(typeof d.current_streak_flat_before_close === 'number'){
+        sg.innerHTML += tile('Flat before the close streak', 'Consecutive days where nothing was left open overnight \u2014 every position opened that day was also closed that day. A position carried into the next calendar day resets this.', d.current_streak_flat_before_close, d.current_streak_flat_before_close > 0 ? 'gain' : 'loss');
+      }
     }
 
     if(typeof d.goal_progress_pct !== 'number'){
