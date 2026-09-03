@@ -844,6 +844,102 @@ def compute_alpha_beta(rows: list) -> dict:
 
 
 
+def compute_trade_sequence_streaks(positions: list) -> dict:
+    """
+    Two streaks measured per closed TRADE (not per day), in the order
+    trades actually closed:
+      - current_streak_green_trades: consecutive winning trades, most
+        recent backward, of any size.
+      - current_streak_no_big_loss: consecutive trades, most recent
+        backward, where every losing trade lost $500 or less. A win of
+        any size keeps this streak alive; a loss over $500 breaks it.
+    """
+    nonzero = [p for p in positions if abs(p["pnl"]) > EPSILON]
+    if not nonzero:
+        return {}
+    ordered = sorted(nonzero, key=lambda p: p["close_dt"])
+
+    green_count = 0
+    for p in reversed(ordered):
+        if p["pnl"] > 0:
+            green_count += 1
+        else:
+            break
+
+    no_big_loss_count = 0
+    for p in reversed(ordered):
+        if p["pnl"] > 0 or abs(p["pnl"]) <= 500:
+            no_big_loss_count += 1
+        else:
+            break
+
+    return {
+        "current_streak_green_trades": green_count,
+        "current_streak_no_big_loss": no_big_loss_count,
+        "big_loss_threshold_dollars": 500,
+    }
+
+
+def compute_daily_trade_count_streak(daily: dict) -> dict:
+    """
+    Current streak of trading days, most recent backward, with 4 or
+    fewer closed trades that day. Days with zero trades count as
+    satisfying this (0 <= 4) - only days that actually breach the
+    4-trade cap break the streak.
+    """
+    dates_sorted = sorted(daily.keys())
+    if not dates_sorted:
+        return {}
+
+    count = 0
+    for d in reversed(dates_sorted):
+        if daily[d]["trades"] <= 4:
+            count += 1
+        else:
+            break
+
+    return {"current_streak_four_trades_or_fewer": count, "trade_count_limit": 4}
+
+
+def compute_flat_before_close_streak(daily: dict, positions: list) -> dict:
+    """
+    Current streak of days, most recent backward, where the account
+    held nothing open overnight - i.e., no position that was open
+    during that day remained open into the next calendar day.
+
+    A position counts as "carried overnight on day D" if it was open
+    at some point on day D and didn't close until day D+1 or later.
+    Every date strictly between (and including) its open date and the
+    day before its close date is marked as carried - the close date
+    itself is fine, since the position was flat by the time that day
+    ended.
+    """
+    dates_sorted = sorted(daily.keys())
+    if not dates_sorted:
+        return {}
+
+    carried_over_dates = set()
+    for p in positions:
+        open_date = p["open_dt"].split(";")[0]
+        close_date = p["close_dt"].split(";")[0]
+        if close_date <= open_date:
+            continue  # closed same day (or a data quirk) - nothing carried
+        d = datetime.strptime(open_date, "%Y%m%d")
+        close_d = datetime.strptime(close_date, "%Y%m%d")
+        while d < close_d:
+            carried_over_dates.add(d.strftime("%Y%m%d"))
+            d += timedelta(days=1)
+
+    count = 0
+    for d in reversed(dates_sorted):
+        if d not in carried_over_dates:
+            count += 1
+        else:
+            break
+
+    return {"current_streak_flat_before_close": count}
+
+
 def compute_stats(xml_text: str) -> dict:
     root = ET.fromstring(xml_text)
 
@@ -881,6 +977,9 @@ def compute_stats(xml_text: str) -> dict:
     stats["daily_pnl"] = {d: v for d, v in daily.items()}
     stats["launch_date"] = stats["period_start"]
     stats.update(compute_goal_tracker(rows))
+    stats.update(compute_trade_sequence_streaks(positions))
+    stats.update(compute_daily_trade_count_streak(daily))
+    stats.update(compute_flat_before_close_streak(daily, positions))
 
     # Kinfo leaderboard rank and US Investing Championship status are
     # not available through any API - Kinfo's leaderboard is a
