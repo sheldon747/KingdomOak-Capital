@@ -759,9 +759,9 @@
     var MIN_LABEL_SPACING = 58; // px in viewBox units, roughly enough for "Mon 2026"
     monthTicks.forEach(function(i){
       var x = points[i][0];
-      if(x - lastLabelX < MIN_LABEL_SPACING) return;
-      lastLabelX = x;
       var labelX = Math.min(x, W - 55); // keep the last label from running off the right edge
+      if(labelX - lastLabelX < MIN_LABEL_SPACING) return; // check the position it will actually render at
+      lastLabelX = labelX;
       parts.push('<line x1="'+x.toFixed(1)+'" y1="'+baseY+'" x2="'+x.toFixed(1)+'" y2="'+(baseY+4)+'" stroke="var(--line)" stroke-width="1"></line>');
       parts.push('<text x="'+labelX.toFixed(1)+'" y="'+(H-6)+'" font-size="9.5" fill="var(--muted)" font-family="IBM Plex Mono, ui-monospace, monospace" text-anchor="start">'+monthYearLabel(series[i][0])+'</text>');
     });
