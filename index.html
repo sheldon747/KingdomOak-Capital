@@ -20,6 +20,7 @@
     --line:#e1e0d8;
     --gain:#1f6f4a;
     --loss:#a23b2c;
+    --caution:#9c7a25;
     --serif: "Source Serif 4", Georgia, serif;
     --sans: "Public Sans", -apple-system, BlinkMacSystemFont, sans-serif;
     --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
@@ -326,6 +327,45 @@
   .week-table td:first-child, .week-table th:first-child{ text-align:left; font-family:var(--sans); }
   .week-table tr:last-child td{ border-bottom:none; }
 
+  /* Pre-trade calculator */
+  .calc-panel{
+    border:1px solid var(--line); background:var(--panel); border-radius:4px; padding:32px;
+  }
+  .calc-badge{
+    display:inline-flex; align-items:center; gap:10px; padding:12px 20px; border-radius:4px;
+    font-family:var(--mono); font-weight:600; font-size:1rem; margin-bottom:24px;
+  }
+  .calc-badge.locked{ background:#fbeceb; color:var(--loss); border:1px solid var(--loss); }
+  .calc-badge.cleared{ background:#eaf3ee; color:var(--gain); border:1px solid var(--gain); }
+  .calc-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:18px; margin-bottom:24px; }
+  .calc-field label{ display:block; font-family:var(--mono); font-size:0.75rem; color:var(--muted); margin-bottom:6px; }
+  .calc-field input, .calc-field select{
+    width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:3px;
+    font-family:var(--mono); font-size:0.9rem; background:var(--paper); color:var(--ink);
+  }
+  .calc-results{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:1px;
+    background:var(--line); border:1px solid var(--line); border-radius:4px; margin-bottom:16px;
+  }
+  .calc-result-item{ background:var(--panel); padding:18px; }
+  .calc-result-item .label{ font-family:var(--mono); font-size:0.72rem; color:var(--muted); margin-bottom:6px; }
+  .calc-result-item .val{ font-family:var(--mono); font-size:1.3rem; font-weight:500; }
+
+  /* Hourly session chart */
+  .hourly-toggle{ display:flex; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:4px; overflow:hidden; margin-bottom:20px; width:fit-content; }
+  .hourly-toggle button{
+    background:var(--panel); border:none; padding:9px 20px; font-family:var(--mono); font-size:0.82rem;
+    color:var(--muted); cursor:pointer;
+  }
+  .hourly-toggle button.active{ background:var(--ink); color:var(--paper); }
+  .hourly-chart-wrap{
+    border:1px solid var(--line); background:var(--panel); border-radius:4px; padding:24px; position:relative;
+  }
+  .hourly-chart-wrap svg{ width:100%; height:auto; display:block; }
+
+  /* TradingView economic calendar */
+  .tv-calendar-wrap{ border:1px solid var(--line); border-radius:4px; overflow:hidden; }
+
   @media (max-width:760px){
     .menu-toggle{ display:block; }
     .charts-row{ grid-template-columns:1fr; }
@@ -347,6 +387,7 @@
     .returns-table th, .returns-table td{ padding:6px 4px; }
     .footer-grid{ grid-template-columns:1fr; gap:28px; }
     .hero{ padding:56px 0 44px; }
+    .calc-panel{ padding:20px; }
   }
 </style>
 </head>
@@ -584,6 +625,101 @@
           <div class="curve-labels" id="goalChartLegend"></div>
         </div>
         <p class="record-note">The dashed line is the compounding pace required to reach $1,000,000 by the deadline, recalculated from wherever the account actually stands each month — not a fixed plan. It assumes perfectly smooth daily growth, which real trading never is; it's a reference line, not a prediction.</p>
+      </div>
+
+      <div class="dash-block">
+        <div class="section-head">
+          <h2 style="font-size:1.15rem;">Pre-trade risk calculator</h2>
+          <span class="note">Verify sizing before every order</span>
+        </div>
+        <div class="calc-panel">
+          <div class="calc-badge cleared" id="circuitBadge">🟢 CLEARED TO TRADE</div>
+
+          <div class="calc-grid">
+            <div class="calc-field">
+              <label for="calcBalance">Account balance ($)</label>
+              <input type="number" id="calcBalance" value="50000" step="0.01">
+            </div>
+            <div class="calc-field">
+              <label for="calcRiskPct">Risk per trade</label>
+              <select id="calcRiskPct">
+                <option value="1">1%</option>
+                <option value="2" selected>2%</option>
+              </select>
+            </div>
+            <div class="calc-field">
+              <label for="calcInstrument">Instrument</label>
+              <select id="calcInstrument"></select>
+            </div>
+            <div class="calc-field">
+              <label for="calcStopTicks">Stop distance (ticks)</label>
+              <input type="number" id="calcStopTicks" value="20" step="1" min="1">
+            </div>
+            <div class="calc-field">
+              <label for="calcCommission">Commission / round turn ($)</label>
+              <input type="number" id="calcCommission" value="4.30" step="0.01" min="0">
+            </div>
+          </div>
+
+          <div class="calc-results">
+            <div class="calc-result-item">
+              <div class="label">Dollar risk</div>
+              <div class="val" id="calcDollarRisk">—</div>
+            </div>
+            <div class="calc-result-item">
+              <div class="label">Max contracts</div>
+              <div class="val" id="calcMaxContracts">—</div>
+            </div>
+            <div class="calc-result-item">
+              <div class="label">Actual $ at risk (sized)</div>
+              <div class="val" id="calcActualRisk">—</div>
+            </div>
+            <div class="calc-result-item">
+              <div class="label">Breakeven move</div>
+              <div class="val" id="calcBreakeven">—</div>
+            </div>
+          </div>
+
+          <p class="record-note">Tick values sourced from CME/COMEX/NYMEX contract specifications, cross-verified against multiple public sources. Contract specs occasionally change — confirm the current tick size and value for your instrument at <a href="https://www.cmegroup.com" target="_blank" rel="noopener noreferrer">cmegroup.com</a> before sizing a live trade. The circuit breaker below reads your actual most-recent trading day's P&amp;L from this site's own data feed.</p>
+        </div>
+      </div>
+
+      <div class="dash-block">
+        <div class="section-head">
+          <h2 style="font-size:1.15rem;">Hourly session performance</h2>
+          <span class="note" id="hourlyNote"></span>
+        </div>
+        <div class="hourly-toggle" id="hourlyToggle">
+          <button class="active" data-cat="futures">Futures</button>
+          <button data-cat="options">Options</button>
+        </div>
+        <div class="hourly-chart-wrap">
+          <svg id="hourlySvg" viewBox="0 0 760 240" preserveAspectRatio="none"></svg>
+        </div>
+        <p class="record-note">Hour of day as reported by the brokerage's trade timestamp, in whatever timezone that report is configured for — not adjusted to any specific timezone here. Treat these as relative session patterns, not an exact clock-time claim, until reconciled against your own trade log.</p>
+      </div>
+
+      <div class="dash-block">
+        <div class="section-head">
+          <h2 style="font-size:1.15rem;">Economic calendar</h2>
+          <span class="note">High-impact USD events</span>
+        </div>
+        <div class="tv-calendar-wrap">
+          <div class="tradingview-widget-container">
+            <div class="tradingview-widget-container__widget"></div>
+            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-events.js" async>
+            {
+              "colorTheme": "light",
+              "isTransparent": false,
+              "width": "100%",
+              "height": "500",
+              "locale": "en",
+              "importanceFilter": "1",
+              "currencyFilter": "USD"
+            }
+            </script>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -1236,6 +1372,160 @@
     renderGoalChart(d.nav_series, d.goal_trajectory);
   }
 
+  // ============ Pre-trade risk calculator ============
+  // Tick values cross-verified against CME/COMEX/NYMEX public
+  // contract specifications (Wikipedia's E-mini/E-micro tables, CME
+  // Group's own micro futures pages, and multiple independent futures
+  // education sites, checked September 2026). Contract specs do
+  // change occasionally - confirm at cmegroup.com before sizing a
+  // live trade with real money.
+  var CONTRACT_SPECS = {
+    'ES':  { name: 'E-mini S&P 500 (ES)',        tickValue: 12.50 },
+    'MES': { name: 'Micro E-mini S&P 500 (MES)', tickValue: 1.25 },
+    'NQ':  { name: 'E-mini Nasdaq-100 (NQ)',     tickValue: 5.00 },
+    'MNQ': { name: 'Micro E-mini Nasdaq-100 (MNQ)', tickValue: 0.50 },
+    'GC':  { name: 'Gold (GC)',                  tickValue: 10.00 },
+    'MGC': { name: 'Micro Gold (MGC)',           tickValue: 1.00 },
+    'CL':  { name: 'Crude Oil (CL)',             tickValue: 10.00 },
+    'MCL': { name: 'Micro Crude Oil (MCL)',      tickValue: 1.00 },
+    'M6E': { name: 'Micro EUR/USD (M6E)',        tickValue: 1.25 },
+    'MBT': { name: 'Micro Bitcoin (MBT)',        tickValue: 0.50 }
+  };
+
+  function initCalculator(latestDayPnl, rUnitDollars){
+    var instrSel = document.getElementById('calcInstrument');
+    if(!instrSel) return;
+    instrSel.innerHTML = Object.keys(CONTRACT_SPECS).map(function(sym){
+      return '<option value="'+sym+'"'+(sym==='MES'?' selected':'')+'>'+CONTRACT_SPECS[sym].name+'</option>';
+    }).join('');
+
+    var balanceEl = document.getElementById('calcBalance');
+    var riskPctEl = document.getElementById('calcRiskPct');
+    var stopTicksEl = document.getElementById('calcStopTicks');
+    var commissionEl = document.getElementById('calcCommission');
+
+    function recalc(){
+      var balance = parseFloat(balanceEl.value) || 0;
+      var riskPct = parseFloat(riskPctEl.value) || 0;
+      var stopTicks = parseFloat(stopTicksEl.value) || 0;
+      var commission = parseFloat(commissionEl.value) || 0;
+      var spec = CONTRACT_SPECS[instrSel.value];
+
+      var dollarRisk = balance * (riskPct / 100);
+      var riskPerContract = stopTicks * spec.tickValue;
+      var maxContracts = riskPerContract > 0 ? Math.floor(dollarRisk / riskPerContract) : 0;
+      var actualRisk = maxContracts * riskPerContract;
+      // Breakeven: ticks needed to cover the round-turn commission on
+      // however many contracts are sized, per contract (commission
+      // scales with contract count on both sides, and so does tick
+      // value, so the ticks-to-cover figure is actually independent
+      // of contract count - it's a per-contract breakeven distance).
+      var breakevenTicks = spec.tickValue > 0 ? (commission / spec.tickValue) : 0;
+
+      document.getElementById('calcDollarRisk').textContent = '$' + dollarRisk.toFixed(2);
+      document.getElementById('calcMaxContracts').textContent = maxContracts;
+      document.getElementById('calcActualRisk').textContent = '$' + actualRisk.toFixed(2);
+      document.getElementById('calcBreakeven').textContent = breakevenTicks.toFixed(1) + ' ticks';
+    }
+
+    [balanceEl, riskPctEl, instrSel, stopTicksEl, commissionEl].forEach(function(el){
+      el.addEventListener('input', recalc);
+      el.addEventListener('change', recalc);
+    });
+    recalc();
+
+    // Circuit breaker: reads the most recent actual trading day's P&L
+    // from this site's own data feed and compares it to 2x the
+    // account's defined risk unit (R). This is a real read of your
+    // account, not a manual toggle.
+    var badge = document.getElementById('circuitBadge');
+    if(badge && typeof latestDayPnl === 'number' && typeof rUnitDollars === 'number' && rUnitDollars > 0){
+      var lossThreshold = -2 * rUnitDollars;
+      if(latestDayPnl <= lossThreshold){
+        badge.className = 'calc-badge locked';
+        badge.textContent = '🔴 LOCK TERMINAL — today\u2019s P&L (' + formatSignedCurrency(latestDayPnl) + ') has reached ' + (latestDayPnl/rUnitDollars).toFixed(1) + 'R loss';
+      } else {
+        badge.className = 'calc-badge cleared';
+        badge.textContent = '🟢 CLEARED TO TRADE — today\u2019s P&L: ' + formatSignedCurrency(latestDayPnl) + ' (' + (latestDayPnl/rUnitDollars).toFixed(1) + 'R)';
+      }
+    }
+  }
+
+  function formatSignedCurrency(n){
+    var sign = n >= 0 ? '+$' : '-$';
+    return sign + Math.abs(Math.round(n)).toLocaleString();
+  }
+
+  // ============ Hourly session performance ============
+  var hourlySessionData = null;
+  var hourlyActiveCategory = 'futures';
+
+  function renderHourlyChart(){
+    var svg = document.getElementById('hourlySvg');
+    var note = document.getElementById('hourlyNote');
+    if(!svg || !hourlySessionData) return;
+
+    var data = hourlySessionData[hourlyActiveCategory] || {};
+    var hours = [];
+    for(var h = 0; h < 24; h++){
+      hours.push(data[String(h)] || null);
+    }
+
+    var hasAny = hours.some(function(h){ return h !== null; });
+    if(!hasAny){
+      svg.innerHTML = '';
+      if(note) note.textContent = 'No ' + hourlyActiveCategory + ' trades in this data set.';
+      return;
+    }
+    if(note){
+      var totalCount = hours.reduce(function(sum, h){ return sum + (h ? h.count : 0); }, 0);
+      note.textContent = totalCount + ' closed ' + hourlyActiveCategory + ' trades, by hour of day (as reported)';
+    }
+
+    var W = 760, H = 240, padTop = 10, padBottom = 30, padLeft = 4;
+    var innerH = H - padTop - padBottom;
+    var innerW = W - padLeft;
+    var barW = innerW / 24;
+
+    var maxAbs = Math.max.apply(null, hours.map(function(h){ return h ? Math.abs(h.avg_pnl) : 0; }).concat([1]));
+    var zeroY = padTop + innerH / 2;
+
+    var parts = [];
+    parts.push('<line x1="0" y1="'+zeroY.toFixed(1)+'" x2="'+W+'" y2="'+zeroY.toFixed(1)+'" stroke="var(--line)" stroke-width="1"></line>');
+
+    hours.forEach(function(h, i){
+      var x = padLeft + i * barW;
+      var barCenterX = x + barW/2;
+      if(h === null){
+        parts.push('<text x="'+barCenterX.toFixed(1)+'" y="'+(H-8)+'" font-size="8" fill="var(--line)" text-anchor="middle" font-family="IBM Plex Mono, monospace">'+i+'</text>');
+        return;
+      }
+      var val = h.avg_pnl;
+      var barHeight = Math.abs(val) / maxAbs * (innerH/2 - 4);
+      var barY = val >= 0 ? zeroY - barHeight : zeroY;
+      var color = val >= 0 ? 'var(--gain)' : 'var(--loss)';
+      var bw = Math.max(barW - 4, 2);
+      parts.push('<rect x="'+(x+2).toFixed(1)+'" y="'+barY.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(barHeight,1).toFixed(1)+'" fill="'+color+'" fill-opacity="0.75">'+
+        '<title>Hour '+i+': avg '+formatSignedCurrency(val)+' over '+h.count+' trades</title></rect>');
+      parts.push('<text x="'+barCenterX.toFixed(1)+'" y="'+(H-8)+'" font-size="8" fill="var(--muted)" text-anchor="middle" font-family="IBM Plex Mono, monospace">'+i+'</text>');
+    });
+
+    svg.innerHTML = parts.join('');
+  }
+
+  function initHourlyToggle(){
+    var toggle = document.getElementById('hourlyToggle');
+    if(!toggle) return;
+    toggle.querySelectorAll('button').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        toggle.querySelectorAll('button').forEach(function(b){ b.classList.remove('active'); });
+        btn.classList.add('active');
+        hourlyActiveCategory = btn.getAttribute('data-cat');
+        renderHourlyChart();
+      });
+    });
+  }
+
   fetch('data.json', { cache: 'no-store' })
     .then(function(res){ if(!res.ok) throw new Error('no data.json yet'); return res.json(); })
     .then(function(d){
@@ -1314,6 +1604,21 @@
         var trades = typeof d.total_trades === 'number' ? d.total_trades + ' closed trades · ' : '';
         var updatedStr = d.updated_at ? shortDate(d.updated_at.slice(0,10).replace(/-/g, '')) : '';
         period.textContent = trades + shortDate(d.period_start) + ' – ' + shortDate(d.period_end) + (updatedStr ? ' · updated ' + updatedStr : '');
+      }
+
+      // Pre-trade calculator + circuit breaker
+      var dailyKeys = d.daily_pnl ? Object.keys(d.daily_pnl).sort() : [];
+      var latestDayPnl = dailyKeys.length ? d.daily_pnl[dailyKeys[dailyKeys.length - 1]].pnl : null;
+      initCalculator(latestDayPnl, d.R_unit_dollars);
+
+      // Hourly session performance
+      if(d.hourly_session_pnl){
+        hourlySessionData = d.hourly_session_pnl;
+        initHourlyToggle();
+        renderHourlyChart();
+      } else {
+        var hourlyNote = document.getElementById('hourlyNote');
+        if(hourlyNote) hourlyNote.textContent = 'No hourly session data in this data set yet.';
       }
     })
     .catch(function(){
