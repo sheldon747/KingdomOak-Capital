@@ -300,6 +300,7 @@ def parse_fills(root: ET.Element) -> list:
             "pnl": pnl,
             "multiplier": multiplier,
             "trade_price": trade_price,
+            "asset_category": t.get("assetCategory"),
         })
     return fills
 
@@ -332,6 +333,7 @@ def build_positions(fills: list) -> list:
         open_dt = None
         entry_notional = 0.0
         underlying = conid_fills[0]["underlying_symbol"]
+        asset_category = conid_fills[0].get("asset_category")
         for f in conid_fills:
             if open_dt is None:
                 open_dt = f["date_time"]
@@ -346,6 +348,7 @@ def build_positions(fills: list) -> list:
                     "close_dt": f["date_time"],
                     "underlying_symbol": underlying,
                     "entry_notional": entry_notional,
+                    "asset_category": asset_category,
                 })
                 accumulated_pnl = 0.0
                 running_qty = 0.0
@@ -835,15 +838,6 @@ def compute_alpha_beta(rows: list) -> dict:
     }
 
 
-# ============================================================
-# Top-level orchestration
-# ============================================================
-
-# ============================================================
-
-
-
-
 def compute_trade_sequence_streaks(positions: list) -> dict:
     """
     Two streaks measured per closed TRADE (not per day), in the order
@@ -940,6 +934,54 @@ def compute_flat_before_close_streak(daily: dict, positions: list) -> dict:
     return {"current_streak_flat_before_close": count}
 
 
+# ============================================================
+# Hourly session breakdown: futures vs options, by hour of day
+# ============================================================
+#
+# Hour buckets come straight from the Date/Time IBKR reports on each
+# closing fill - whatever timezone that Flex Query is configured to
+# report in (commonly the account's local/reporting timezone; check
+# your Flex Query's timezone setting if this doesn't match your own
+# clock). No timezone conversion is attempted here since I can't
+# verify which timezone your specific Flex Query is set to - treat
+# the hour labels as "IBKR's reported hour," and reconcile once
+# against your own trade log if you need this to align to a specific
+# timezone exactly.
+
+def compute_hourly_session_stats(positions: list) -> dict:
+    nonzero = [p for p in positions if abs(p["pnl"]) > EPSILON]
+    if not nonzero:
+        return {}
+
+    buckets = {"futures": {}, "options": {}}
+    for p in nonzero:
+        category = "options" if p.get("asset_category") == "OPT" else "futures"
+        try:
+            hour = _parse_dt(p["close_dt"]).hour
+        except (ValueError, KeyError):
+            continue
+        buckets[category].setdefault(hour, []).append(p["pnl"])
+
+    result = {}
+    for category, hours in buckets.items():
+        if not hours:
+            continue
+        hourly = {}
+        for hour, pnls in hours.items():
+            hourly[str(hour)] = {
+                "avg_pnl": _r(sum(pnls) / len(pnls)),
+                "total_pnl": _r(sum(pnls)),
+                "count": len(pnls),
+            }
+        result[category] = hourly
+
+    return {"hourly_session_pnl": result} if result else {}
+
+
+# ============================================================
+# Top-level orchestration
+# ============================================================
+
 def compute_stats(xml_text: str) -> dict:
     root = ET.fromstring(xml_text)
 
@@ -980,6 +1022,7 @@ def compute_stats(xml_text: str) -> dict:
     stats.update(compute_trade_sequence_streaks(positions))
     stats.update(compute_daily_trade_count_streak(daily))
     stats.update(compute_flat_before_close_streak(daily, positions))
+    stats.update(compute_hourly_session_stats(positions))
 
     # Kinfo leaderboard rank and US Investing Championship status are
     # not available through any API - Kinfo's leaderboard is a
