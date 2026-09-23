@@ -2,10 +2,12 @@ name: Update performance data
 
 on:
   schedule:
-    # Runs at 06:00 UTC on the 1st of every month.
-    # Cron is UTC-only; adjust the hour if you want it to land at a
-    # specific local time.
-    - cron: "0 6 1 * *"
+    # Runs every 2 hours. IBKR's daily NAV report is only daily-
+    # granularity, so most of these runs will find nothing new and
+    # skip the commit - this just means new data shows up within 2
+    # hours of IBKR posting it, rather than waiting for the next
+    # monthly run.
+    - cron: "0 */2 * * *"
   workflow_dispatch: {}  # lets you trigger it manually from the Actions tab
 
 permissions:
@@ -34,5 +36,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data.json
-          git diff --quiet --cached || git commit -m "Update performance data ($(date -u +%Y-%m-%d))"
+          git diff --quiet --cached || git commit -m "Update performance data ($(date -u +%Y-%m-%d %H:%M UTC))"
           git push
